@@ -474,7 +474,7 @@ class TrpExp:
         else:
             return ybl
 
-    def ppick(self, x, y, plot=True, wlen=21, **kwargs):
+    def ppick(self, x, y, plot, wlen=21, **kwargs):
         yo = y
         ys = self.smooth(y, wlen=wlen)
         ybl = self.blcor(x, ys)
