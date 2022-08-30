@@ -370,6 +370,7 @@ class TrpExp:
             'a28': {'analyte': {'FUNCTION 2': 'Trimethylamine-N-oxide'}},
             'a29': {'analyte': {'FUNCTION 7': 'Tyramine'}},
         }
+        self.qs = {}
     #
     # @staticmethod
     # def blcor(x, y, wlenF=0.4, rety=True):
@@ -396,7 +397,6 @@ class TrpExp:
 
     @staticmethod
     def decon1(x, y, peaks, hh, plot=True, ax=[None, None]):
-        import math
         def cost(params):
             n = round(len(params) / 4)
             est = np.zeros_like(x)
@@ -437,33 +437,34 @@ class TrpExp:
 
         psum = np.zeros_like(x)
         acomp = []
+        comp = []
         yest = []
         for i in range(1, (len(param) // 4) + 1):
             p = result.x[(i * 4 - 4):(i * 4)]
             est = g(x, *p)
             yest.append(est)
-            acomp.append(np.sum(est))
+            acomp.append(np.trapz(est))
+            comp.append(est)
             psum += est
 
+        # if plot:
+        #     cols = plt.get_cmap('Set1').colors
+        #     ci=0
+        #     for i in range(len(yest)):
+        #         ax[0].plot(x, yest[i], color=cols[ci], linewidth=1)
+        #         ax[0].fill_between(x=x, y1=yest[i], color=cols[ci], alpha=0.4)
+        #         ci += 1
+        #         if ci >= len(cols):
+        #             ci = 0
+        #     ax[1].plot(x, psum - y, c='orange')
+        #     ax[0].plot(x, psum, label='psum', c='cyan')
+        #     ax[0].plot(x, y, label='ori', c='black', linewidth=1.2)
+        #     ax[0].legend()
 
-        if plot:
-            cols = plt.get_cmap('Set1').colors
-            ci=0
-            for i in range(len(yest)):
-                ax[0].plot(x, yest[i], color=cols[ci], linewidth=1)
-                ax[0].fill_between(x=x, y1=yest[i], color=cols[ci], alpha=0.4)
-                ci += 1
-                if ci >= len(cols):
-                    ci = 0
-            ax[1].plot(x, psum - y, c='orange')
-            ax[0].plot(x, psum, label='psum', c='cyan')
-            ax[0].plot(x, y, label='ori', c='black', linewidth=1.2)
-            ax[0].legend()
-
-        return [result.success, np.sum((psum - y) ** 2), acomp, yest, result.x]
+        return [result.success, np.sqrt(np.sum((psum - y) ** 2)), acomp, yest, result.x, comp]
 
     @staticmethod
-    def blcor(x, y, wlenF=None, rety=True):
+    def blcor(y, rety=True):
         # from scipy.interpolate import UnivariateSpline
         import pybaselines as bll
         ybl=bll.whittaker.iasls(y, lam=1e2)[0]
@@ -474,110 +475,146 @@ class TrpExp:
         else:
             return ybl
 
-    def ppick(self, x, y, plot, wlen=21, **kwargs):
-        yo = y
-        ys = self.smooth(y, wlen=wlen)
-        ybl = self.blcor(x, ys)
-        baseline = self.blcor(x, yo, rety=False)
-        yo = yo - baseline
-        if max(ybl) > 2e4:
-            s = 0.1 / 2e4
-            ybl = ybl * s
-            ys = ys * s
-            yo = yo * s
-            baseline = baseline * s
+    # def ppick(self, x, y, plot, wlen=21, **kwargs):
+    #     yo = y
+    #     ys = self.smooth(y, wlen=wlen)
+    #     ybl = self.blcor(x, ys)
+    #     baseline = self.blcor(yo, rety=False)
+    #     yo = yo - baseline
+    #     if max(ybl) > 2e4:
+    #         s = 0.1 / 2e4
+    #         ybl = ybl * s
+    #         ys = ys * s
+    #         yo = yo * s
+    #         baseline = baseline * s
+    #     else:
+    #         # if plot:
+    #         #     plt.figure()
+    #         #     plt.plot(x, yo, c='green', label='ori-bl')
+    #         #     plt.plot(x, ys, c='gray', label='sm', linewidth=1)
+    #         #     plt.plot(x, ybl, c='orange', label='sm-bl')
+    #         #     plt.plot(x, baseline, label='bl', c='red')
+    #         #     plt.legend()
+    #         return 'Signals below noise threshold'
+    #     # all noise, no peak detected
+    #
+    #     # padding to include boundary signals
+    #     em = np.exp([-x for x in range(10)])
+    #     pad = np.ones(10)
+    #     ybl=np.concatenate([np.flip(em)*(pad*ybl[0]), ybl, em*(pad*ybl[-1])])
+    #     # height=0.1, distance=5, prominence=0.1, width=1
+    #     # peaks, hh = ssig.find_peaks(ybl, height=0.1, distance=1, prominence=0.0001, width=3,)
+    #     peaks, hh = ssig.find_peaks(ybl, **kwargs)
+    #
+    #     dp=np.mean(np.diff(x))
+    #     x=np.concatenate([np.linspace(x[0]-(dp*9), x[0], 10), x, np.linspace(x[-1], x[-1]+(dp*9), 10)])
+    #     if len(peaks) == 0:
+    #         return 'No peaks found'
+    #     # pad other specs with zero
+    #     yo = np.concatenate([(pad*0), yo, (pad*0)])
+    #     ys = np.concatenate([(pad * 0), ys, (pad * 0)])
+    #     lyo = len(yo)
+    #     idxp = [i for i, p in enumerate(peaks) if p > 11 and p <= (lyo - 12)]
+    #     if len(idxp) == 0:
+    #         return 'No peaks found'
+    #
+    #     h1 = {}
+    #     [h1.update({k: dat[idxp]}) for k, dat in hh.items()]
+    #     peaks = peaks[idxp]
+    #     hh=h1
+    #
+    #     hh['peak_heights'] = yo[peaks]
+    #     hh['right_ips'] = np.array([i if i < len(yo) else len(yo)-1 for i in hh['right_ips'].astype(int)])
+    #     hh['left_ips'] = np.array([i if i >=0 else 0 for i in hh['left_ips'].astype(int)])
+    #     hh['right_bases'] = np.array([i if i < len(yo) else len(yo)-1 for i in hh['right_bases'].astype(int)])
+    #     hh['left_bases'] = np.array([i if i >= 0 else 0 for i in hh['left_bases'].astype(int)])
+    #     if plot:
+    #         fig, axs = plt.subplots(3, 1, sharey=True, gridspec_kw={'height_ratios': [1,1,0.4]})
+    #         axs[2].text(1.03, 0, self.fname, rotation=90, fontsize=6, transform=axs[2].transAxes)
+    #
+    #         axs[0].plot(x, yo, c='black', label='ori')
+    #         axs[0].plot(x, ys, label='sm', c='gray', linewidth=1)
+    #         axs[0].plot(x, ybl, label='sm-bl', c='orange', linewidth=1)
+    #         axs[0].hlines(0.1, x[0], x[-1], color='gray', linewidth=1, linestyle='dashed')
+    #         axs[0].vlines(x[hh['left_bases']], -0.5,-0.1, color='gray')
+    #         axs[0].vlines(x[hh['right_bases']], -0.5, -0.1, color='gray')
+    #         axs[0].vlines(x[hh['left_ips']], 0, hh['width_heights'], color='gray', linewidth=1, linestyle='dotted')
+    #         axs[0].vlines(x[hh['right_ips']], 0, hh['width_heights'], color='gray', linewidth=1, linestyle='dotted')
+    #
+    #         # axs[0].scatter(x[peaks], hh['peak_heights'], c='red')
+    #
+    #         cols = plt.get_cmap('Set1').colors
+    #         ci = 0
+    #         for pi, p in enumerate(peaks):
+    #             axs[0].annotate(round(hh['prominences'][pi], 1), (x[peaks][pi], hh['peak_heights'][pi]),
+    #                             textcoords='offset pixels', xytext=(-4, 10), rotation=90)
+    #
+    #             peak_width = round(hh['widths'][pi] / 2)
+    #             idx_left = max([0, peaks[pi] - peak_width])
+    #             idx_right = min([lyo-1, peaks[pi] + peak_width])
+    #             axs[0].hlines(-0.3, x[idx_left], x[idx_right], color=cols[ci])
+    #             ci += 1
+    #             if ci >= len(cols):
+    #                 ci = 0
+    #             # axs[0].annotate(round(hh['widths'][pi], 1), (x[peaks][pi], max(yo)))
+    #
+    #             # plt.hlines(hh['peak_heights'][pi]/2, x[peaks[pi] - (round(hh['widths'][pi]/2))], x[peaks[pi] + (round(hh['widths'][pi]/2))])
+    #             # axs[0].hlines(hh['width_heights'][pi], x[idx_left], x[idx_right])
+    #             # axs[0].annotate(round(hh['widths'][pi], 1), (x[peaks][pi], max(yo)))
+    #         axs[0].scatter(x[peaks], np.repeat(-0.3, len(peaks)), c='black', s=20)
+    #         axs[0].scatter(x[peaks], np.repeat(-0.3, len(peaks)), c='white', s=5, zorder=10)
+    #
+    #         print('starting decon1')
+    #         dec = self.decon1(x, yo, peaks, hh, ax=[axs[1], axs[2]], plot=True)
+    #         axs[0].legend()
+    #     else:
+    #         dec = self.decon1(x, yo, peaks, hh, ax=[None, None], plot=False)
+    #     return [dec, s, peaks, hh]
+
+    def qFunction(self, fid, sir = None, plot=True, **kwargs):
+        # height = 0.1, distance = 1, prominence = 0.1, width = 3, wlen = 17
+        qs = {}
+        f = self.efun.funcs[fid]
+        df = self.extractData(fid)
+
+        if sir is not None:
+            print(fid)
+            print(f"SIR {sir}: {f.reactions[sir]}")
+
+            r = df['d'][int(sir)-1]
+            l = int(sir)
+            x = r[1]
+            y = r[2]
+
+            res = self.ppick(x, y, plot=plot, height = 0.1, distance = 1, prominence = 0.1, width = 3, wlen = 17)
+            # res = self.ppick(x, y, plot=plot, **kwargs)
+
+            if isinstance(res, list):
+                plt.suptitle(
+                    fid + '.' + str(l) + ': ' + f.reactions[sir].__repr__() + '\n' + str(
+                        res[0][0]) + ', res: ' + str(round(res[0][1])))
+            if fid not in self.qs:
+                self.qs[fid] = {}
+            self.qs[fid].update({l: res})
+
         else:
-            # if plot:
-            #     plt.figure()
-            #     plt.plot(x, yo, c='green', label='ori-bl')
-            #     plt.plot(x, ys, c='gray', label='sm', linewidth=1)
-            #     plt.plot(x, ybl, c='orange', label='sm-bl')
-            #     plt.plot(x, baseline, label='bl', c='red')
-            #     plt.legend()
-            return 'Signals below noise threshold'
-        # all noise, no peak detected
-
-        # padding to include boundary signals
-        em = np.exp([-x for x in range(10)])
-        pad = np.ones(10)
-        ybl=np.concatenate([np.flip(em)*(pad*ybl[0]), ybl, em*(pad*ybl[-1])])
-        # height=0.1, distance=5, prominence=0.1, width=1
-        # peaks, hh = ssig.find_peaks(ybl, height=0.1, distance=1, prominence=0.0001, width=3,)
-        peaks, hh = ssig.find_peaks(ybl, **kwargs)
-
-        dp=np.mean(np.diff(x))
-        x=np.concatenate([np.linspace(x[0]-(dp*9), x[0], 10), x, np.linspace(x[-1], x[-1]+(dp*9), 10)])
-
-
-        if len(peaks) == 0:
-            return 'No peaks found'
-
-        # pad other specs with zero
-        yo = np.concatenate([(pad*0), yo, (pad*0)])
-        ys = np.concatenate([(pad * 0), ys, (pad * 0)])
-
-
-        lyo = len(yo)
-        idxp = [i for i, p in enumerate(peaks) if p > 11 and p <= (lyo - 12)]
-        if len(idxp) == 0:
-            return 'No peaks found'
-
-        h1 = {}
-        [h1.update({k: dat[idxp]}) for k, dat in hh.items()]
-        peaks = peaks[idxp]
-        hh=h1
-
-        hh['peak_heights'] = yo[peaks]
-        hh['right_ips'] = np.array([i if i < len(yo) else len(yo)-1 for i in hh['right_ips'].astype(int)])
-        hh['left_ips'] = np.array([i if i >=0 else 0 for i in hh['left_ips'].astype(int)])
-        hh['right_bases'] = np.array([i if i < len(yo) else len(yo)-1 for i in hh['right_bases'].astype(int)])
-        hh['left_bases'] = np.array([i if i >= 0 else 0 for i in hh['left_bases'].astype(int)])
-        if plot:
-            fig, axs = plt.subplots(3, 1, sharey=True, gridspec_kw={'height_ratios': [1,1,0.4]})
-            axs[2].text(1.03, 0, self.fname, rotation=90, fontsize=6, transform=axs[2].transAxes)
-
-            axs[0].plot(x, yo, c='black', label='ori')
-            axs[0].plot(x, ys, label='sm', c='gray', linewidth=1)
-            axs[0].plot(x, ybl, label='sm-bl', c='orange', linewidth=1)
-            axs[0].hlines(0.1, x[0], x[-1], color='gray', linewidth=1, linestyle='dashed')
-            axs[0].vlines(x[hh['left_bases']], -0.5,-0.1, color='gray')
-            axs[0].vlines(x[hh['right_bases']], -0.5, -0.1, color='gray')
-            axs[0].vlines(x[hh['left_ips']], 0, hh['width_heights'], color='gray', linewidth=1, linestyle='dotted')
-            axs[0].vlines(x[hh['right_ips']], 0, hh['width_heights'], color='gray', linewidth=1, linestyle='dotted')
-
-            # axs[0].scatter(x[peaks], hh['peak_heights'], c='red')
-
-            cols = plt.get_cmap('Set1').colors
-            ci = 0
-            for pi, p in enumerate(peaks):
-                axs[0].annotate(round(hh['prominences'][pi], 1), (x[peaks][pi], hh['peak_heights'][pi]),
-                                textcoords='offset pixels', xytext=(-4, 10), rotation=90)
-
-                peak_width = round(hh['widths'][pi] / 2)
-                idx_left = max([0, peaks[pi] - peak_width])
-                idx_right = min([lyo-1, peaks[pi] + peak_width])
-                axs[0].hlines(-0.3, x[idx_left], x[idx_right], color=cols[ci])
-                ci += 1
-                if ci >= len(cols):
-                    ci = 0
-                # axs[0].annotate(round(hh['widths'][pi], 1), (x[peaks][pi], max(yo)))
-
-                # plt.hlines(hh['peak_heights'][pi]/2, x[peaks[pi] - (round(hh['widths'][pi]/2))], x[peaks[pi] + (round(hh['widths'][pi]/2))])
-                # axs[0].hlines(hh['width_heights'][pi], x[idx_left], x[idx_right])
-                # axs[0].annotate(round(hh['widths'][pi], 1), (x[peaks][pi], max(yo)))
-            axs[0].scatter(x[peaks], np.repeat(-0.3, len(peaks)), c='black', s=20)
-            axs[0].scatter(x[peaks], np.repeat(-0.3, len(peaks)), c='white', s=5, zorder=10)
-
-            print('starting decon1')
-            dec = self.decon1(x, yo, peaks, hh, ax=[axs[1], axs[2]], plot=True)
-            axs[0].legend()
-        else:
-            dec = self.decon1(x, yo, peaks, hh, ax=[None, None], plot=False)
-        return [dec, s, peaks, hh]
-
+            print(fid)
+            for l, r in enumerate(df['d']):
+                print(f"SIR {l}: {f.reactions[str(l+1)]}")
+                x = r[1]
+                y = r[2]
+                # res = self.ppick(x, y, plot=plot, **kwargs)
+                res = self.ppick(x, y, plot=plot, height=0.1, distance=1, prominence=0.1, width=3, wlen=17)
+                if isinstance(res, list):
+                    print('title')
+                    plt.suptitle(
+                        fid + '.' + str(l) + ': ' + f.reactions[str(l + 1)].__repr__() + '\n' + str(
+                            res[0][0]) + ', res: ' + str(round(res[0][1])))
+                    qs[l] = res
+            self.qs[fid] = qs
 
     # run ppick over all functions, record residuals and
-    def quant(self, plot=True, **kwargs):
+    def q(self, plot=True, **kwargs):
         # height = 0.1, distance = 1, prominence = 0.1, width = 3, wlen = 17
         qs = {}
         for i, f in enumerate(self.efun.funcs.keys()):
@@ -587,7 +624,7 @@ class TrpExp:
             f = list(self.efun.funcs.keys())[i]
             df = self.extractData(f)
             for l, r in enumerate(df['d']):
-
+                print(f"SIR {i}: {f.reactions[i]}")
                 # l=1
                 # r = df['d'][l]
                 x = r[1]
@@ -626,80 +663,188 @@ class TrpExp:
             ret['m'].append(sub.iloc[i])
         return ret
 
-    def plotEfun(self, id, **xargs):
-        ff = self.efun.funcs['FUNCTION ' + str(id)]
-        p='1P' if ff.polarity == 'Positive' else '1N'
-        sub = self.dfd[p][ self.dfd[p]['fid'] == str(id) ]
-        React = list(self.efun.funcs['FUNCTION ' + str(id)].reactions)
-        nReact = len(React)
-        if nReact != len(sub.index.values):
-            print('Product ion missing')
-        if nReact == 1:
-            i=0
-            xd = self.xrawd[p][:,  self.xrawd[p][0] == float(sub.fid.values[0]) ]
-            fig, axs = plt.subplots(nReact, sharex=True, sharey=True)
-            axs.plot(xd[1], xd[2])
-            # pidx, pint = self.quant(xd, **xargs)
-            # axs.scatter(xd[1][pidx], pint['peak_heights'], c='red')
-            axs.set_ylabel(r"$\bfCount$")
-            axs.text(0.77, 0.9, f'Pr@ {ff.reactions[str(i + 1)].massProduct} m/z', rotation=0, fontsize=8,
-                        transform=axs.transAxes,
-                        ha='left')
-            axs.text(0.77, 0.8, f'st:  {ff.stEnd_min}-{ff.stStart_min} min', rotation=0, fontsize=8,
-                        transform=axs.transAxes,
-                        ha='left')
-            axs.text(0.77, 0.7, f'{ff.reactions[str(i + 1)].compoundName}', rotation=0, fontsize=8,
-                        transform=axs.transAxes,
-                        ha='left')
-            axs.text(0.77, 0.5, f'Co-E: {ff.reactions[str(i + 1)].collisionEnergy} eV', rotation=0, fontsize=8,
-                        transform=axs.transAxes,
-                        ha='left')
-            axs.text(0.77, 0.4, f'Conevolt: {ff.reactions[str(i + 1)].conevoltageV}', rotation=0, fontsize=8,
-                        transform=axs.transAxes,
-                        ha='left')
-            axs.text(0.77, 0.3, f'Polarity: {ff.polarity}', rotation=0, fontsize=8,
-                        transform=axs.transAxes,
-                        ha='left')
-            axs.text(0.77, 0.2, f'P@ {ff.reactions[str(i + 1)].massPrecursor} m/z', rotation=0, fontsize=8,
-                        transform=axs.transAxes,
-                        ha='left')
-            fig.suptitle(f"F{str(id)}:  {ff.name} @ {ff.reactions[str(i + 1)].massPrecursor} m/z")
-            axs.text(1.04, 0, self.fname, rotation=90, fontsize=6, transform=axs.transAxes)
-            axs.set_xlabel(r"$\bfScantime (min)$")
-        else:
-            fig, axs = plt.subplots(nReact, sharex=True, sharey=True)
-            for i in range(nReact):
-                sidx = sub['index'].iloc[i]
-                xd =  self.xrawd[p][:, self.xrawd[p][0] == float(sidx)]
-                axs[i].plot(xd[1], xd[2])
-                pidx, pint = self.quant(xd, **xargs)
-                axs[i].scatter(xd[1][pidx], pint['peak_heights'], c='red')
-                axs[i].set_ylabel(r"$\bfCount$")
-                print(self.efun.funcs['FUNCTION ' + str(id)].reactions[str(i + 1)])
-                axs[i].text(0.77, 0.9, f'Pr@ {ff.reactions[str(i + 1)].massProduct} m/z', rotation=0, fontsize=8, transform=axs[i].transAxes,
-                            ha='left')
-                axs[i].text(0.77, 0.8, f'st:  {ff.stEnd_min}-{ff.stStart_min} min', rotation=0, fontsize=8,
-                            transform=axs[i].transAxes,
-                            ha='left')
-                axs[i].text(0.77, 0.7, f'{ff.reactions[str(i + 1)].compoundName}', rotation=0, fontsize=8,
-                            transform=axs[i].transAxes,
-                            ha='left')
-                axs[i].text(0.77, 0.5, f'Co-E: {ff.reactions[str(i + 1)].collisionEnergy} eV', rotation=0, fontsize=8,
-                            transform=axs[i].transAxes,
-                            ha='left')
-                axs[i].text(0.77, 0.4, f'Conevolt: {ff.reactions[str(i + 1)].conevoltageV}', rotation=0, fontsize=8,
-                            transform=axs[i].transAxes,
-                            ha='left')
-                axs[i].text(0.77, 0.3, f'Polarity: {ff.polarity}', rotation=0, fontsize=8,
-                            transform=axs[i].transAxes,
-                            ha='left')
-                axs[i].text(0.77, 0.2, f'P@ {ff.reactions[str(i + 1)].massPrecursor} m/z', rotation=0, fontsize=8,
-                            transform=axs[i].transAxes,
-                            ha='left')
-                fig.suptitle(f"F{str(id)}:  {ff.name} @ {ff.reactions[str(i + 1)].massPrecursor} m/z")
+    # def plotEfun(self, id, **xargs):
+    #     ff = self.efun.funcs['FUNCTION ' + str(id)]
+    #     p='1P' if ff.polarity == 'Positive' else '1N'
+    #     sub = self.dfd[p][ self.dfd[p]['fid'] == str(id) ]
+    #     React = list(self.efun.funcs['FUNCTION ' + str(id)].reactions)
+    #     nReact = len(React)
+    #     if nReact != len(sub.index.values):
+    #         print('Product ion missing')
+    #     if nReact == 1:
+    #         i=0
+    #         xd = self.xrawd[p][:,  self.xrawd[p][0] == float(sub.fid.values[0]) ]
+    #         fig, axs = plt.subplots(nReact, sharex=True, sharey=True)
+    #         axs.plot(xd[1], xd[2])
+    #         # pidx, pint = self.quant(xd, **xargs)
+    #         # axs.scatter(xd[1][pidx], pint['peak_heights'], c='red')
+    #         axs.set_ylabel(r"$\bfCount$")
+    #         axs.text(0.77, 0.9, f'Pr@ {ff.reactions[str(i + 1)].massProduct} m/z', rotation=0, fontsize=8,
+    #                     transform=axs.transAxes,
+    #                     ha='left')
+    #         axs.text(0.77, 0.8, f'st:  {ff.stEnd_min}-{ff.stStart_min} min', rotation=0, fontsize=8,
+    #                     transform=axs.transAxes,
+    #                     ha='left')
+    #         axs.text(0.77, 0.7, f'{ff.reactions[str(i + 1)].compoundName}', rotation=0, fontsize=8,
+    #                     transform=axs.transAxes,
+    #                     ha='left')
+    #         axs.text(0.77, 0.5, f'Co-E: {ff.reactions[str(i + 1)].collisionEnergy} eV', rotation=0, fontsize=8,
+    #                     transform=axs.transAxes,
+    #                     ha='left')
+    #         axs.text(0.77, 0.4, f'Conevolt: {ff.reactions[str(i + 1)].conevoltageV}', rotation=0, fontsize=8,
+    #                     transform=axs.transAxes,
+    #                     ha='left')
+    #         axs.text(0.77, 0.3, f'Polarity: {ff.polarity}', rotation=0, fontsize=8,
+    #                     transform=axs.transAxes,
+    #                     ha='left')
+    #         axs.text(0.77, 0.2, f'P@ {ff.reactions[str(i + 1)].massPrecursor} m/z', rotation=0, fontsize=8,
+    #                     transform=axs.transAxes,
+    #                     ha='left')
+    #         fig.suptitle(f"F{str(id)}:  {ff.name} @ {ff.reactions[str(i + 1)].massPrecursor} m/z")
+    #         axs.text(1.04, 0, self.fname, rotation=90, fontsize=6, transform=axs.transAxes)
+    #         axs.set_xlabel(r"$\bfScantime (min)$")
+    #     else:
+    #         fig, axs = plt.subplots(nReact, sharex=True, sharey=True)
+    #         for i in range(nReact):
+    #             sidx = sub['index'].iloc[i]
+    #             xd =  self.xrawd[p][:, self.xrawd[p][0] == float(sidx)]
+    #             axs[i].plot(xd[1], xd[2])
+    #             pidx, pint = self.quant(xd, **xargs)
+    #             axs[i].scatter(xd[1][pidx], pint['peak_heights'], c='red')
+    #             axs[i].set_ylabel(r"$\bfCount$")
+    #             print(self.efun.funcs['FUNCTION ' + str(id)].reactions[str(i + 1)])
+    #             axs[i].text(0.77, 0.9, f'Pr@ {ff.reactions[str(i + 1)].massProduct} m/z', rotation=0, fontsize=8, transform=axs[i].transAxes,
+    #                         ha='left')
+    #             axs[i].text(0.77, 0.8, f'st:  {ff.stEnd_min}-{ff.stStart_min} min', rotation=0, fontsize=8,
+    #                         transform=axs[i].transAxes,
+    #                         ha='left')
+    #             axs[i].text(0.77, 0.7, f'{ff.reactions[str(i + 1)].compoundName}', rotation=0, fontsize=8,
+    #                         transform=axs[i].transAxes,
+    #                         ha='left')
+    #             axs[i].text(0.77, 0.5, f'Co-E: {ff.reactions[str(i + 1)].collisionEnergy} eV', rotation=0, fontsize=8,
+    #                         transform=axs[i].transAxes,
+    #                         ha='left')
+    #             axs[i].text(0.77, 0.4, f'Conevolt: {ff.reactions[str(i + 1)].conevoltageV}', rotation=0, fontsize=8,
+    #                         transform=axs[i].transAxes,
+    #                         ha='left')
+    #             axs[i].text(0.77, 0.3, f'Polarity: {ff.polarity}', rotation=0, fontsize=8,
+    #                         transform=axs[i].transAxes,
+    #                         ha='left')
+    #             axs[i].text(0.77, 0.2, f'P@ {ff.reactions[str(i + 1)].massPrecursor} m/z', rotation=0, fontsize=8,
+    #                         transform=axs[i].transAxes,
+    #                         ha='left')
+    #             fig.suptitle(f"F{str(id)}:  {ff.name} @ {ff.reactions[str(i + 1)].massPrecursor} m/z")
+    #
+    #         axs[i].text(1.04, 0, self.fname, rotation=90, fontsize=6, transform=axs[i].transAxes)
+    #         axs[i].set_xlabel(r"$\bfScantime (min)$")
 
-            axs[i].text(1.04, 0, self.fname, rotation=90, fontsize=6, transform=axs[i].transAxes)
-            axs[i].set_xlabel(r"$\bfScantime (min)$")
+    def featplot(self, ff):
+        # rec = {'x': x, 'yo': yo, 'ys': ys, 'bl': baseline, 'peaks': peaks, 'hh': hh, 'ithresh': ithresh} # ybl
+        fig, axs = plt.subplots(3, 1, sharex=True, gridspec_kw={'height_ratios': [1, 1, 0.4]})
+        axs[2].text(1.03, 0, self.fname, rotation=90, fontsize=6, transform=axs[2].transAxes)
+        pso = -(0.2 * max(ff[0]['yo']))
+        pso_up = -(0.1 * max(ff[0]['yo']))
+        pso_low = -(0.3 * max(ff[0]['yo']))
+
+        axs[0].fill_between(x=ff[0]['x'], y1=ff[0]['yo'], color='white', alpha=1, zorder=10)
+        axs[0].plot(ff[0]['x'], ff[0]['yo'], c='black', label='ori', zorder=11)
+        axs[0].plot(ff[0]['x'], ff[0]['ys'], label='sm', c='gray', linewidth=1, zorder=11)
+        axs[0].plot(ff[0]['x'], ff[0]['ybl'], label='sm-bl', c='cyan', linewidth=1, zorder=11)
+        axs[0].hlines(0.1, ff[0]['x'][0], ff[0]['x'][-1], color='gray', linewidth=1, linestyle='dashed', zorder=0)
+        axs[0].vlines(ff[0]['x'][ff[0]['hh']['left_bases']], pso_low, pso_up, color='gray', zorder=11)
+        axs[0].vlines(ff[0]['x'][ff[0]['hh']['right_bases']], pso_low, pso_up, color='gray', zorder=11)
+        axs[0].vlines(ff[0]['x'][ff[0]['hh']['left_ips']], 0, ff[0]['hh']['width_heights'], color='gray', linewidth=1, linestyle='dotted', zorder=11)
+        axs[0].vlines(ff[0]['x'][ff[0]['hh']['right_ips']], 0, ff[0]['hh']['width_heights'], color='gray', linewidth=1, linestyle='dotted', zorder=11)
+
+        # axs[0].scatter(x[peaks], hh['peak_heights'], c='red')
+        lyo = len(ff[0]['x'])
+        cols = plt.get_cmap('Set1').colors
+        ci = 0
+        for pi, p in enumerate(ff[0]['peaks']):
+            axs[0].annotate(round(ff[0]['hh']['prominences'][pi], 1), (ff[0]['x'][p], ff[0]['hh']['peak_heights'][pi]), textcoords='offset pixels', xytext=(-4, 10), rotation=90)
+            peak_width = round(ff[0]['hh']['widths'][pi] / 2)
+            idx_left = max([0, p - peak_width])
+            idx_right = min([lyo - 1, p + peak_width])
+            axs[0].hlines(pso, ff[0]['x'][idx_left], ff[0]['x'][idx_right], color=cols[ci])
+
+            axs[1].plot(ff[0]['x'], ff[0]['ycomps'][i], color=cols[ci], linewidth=1)
+            axs[1].fill_between(x=ff[0]['x'], y1=ff[0]['ycomps'][i], color=cols[ci], alpha=0.4)
+            ci += 1
+            if ci >= len(cols):
+                ci = 0
+        axs[2].plot(ff[0]['x'], ff[0]['yo']-ff[0]['yest'][0], c='black')
+        axs[0].scatter(ff[0]['x'][ff[0]['peaks']], np.repeat(pso, len(ff[0]['peaks'])), c='black', s=20)
+        axs[0].scatter(ff[0]['x'][ff[0]['peaks']], np.repeat(pso, len(ff[0]['peaks'])), c='white', s=5, zorder=10)
+
+        axs[1].plot(ff[0]['x'], ff[0]['yo'], c='black', label='ori')
+        axs[1].plot(ff[0]['x'], np.sum(ff[0]['ycomps'], 0), label='psum', c='orange')
+        axs[0].legend()
+        plt.suptitle(f"{ff[1][0]['fid']}.{ff[1][0]['sim']}\n{self.efun.funcs[ff[1][0]['fid']].reactions[str(ff[1][0]['sim']+1)]}")
+
+    def featquant(self, x, y, fid, sim, wlen=21, ithresh=2e3, **kwargs):
+        yo = y
+        ys = self.smooth(y, wlen=wlen)
+        ybl = self.blcor(ys)
+        baseline = self.blcor(yo, rety=False)
+        yo = yo - baseline
+
+        if max(ybl) < ithresh:
+            return '<LLOQ'
+
+        s = 0.1 / ithresh
+        ybl = ybl * s
+        ys = ys * s
+        yo = yo * s
+        baseline = baseline * s
+
+        # padding to include boundary signals
+        em = np.exp([-x for x in range(10)]) # exponential function for pads
+        pad = np.ones(10)
+        ybl = np.concatenate([np.flip(em) * (pad * ybl[0]), ybl, em * (pad * ybl[-1])])
+
+        # height=0.1, distance=5, prominence=0.1, width=1
+        # peaks, hh = ssig.find_peaks(ybl, height=0.1, distance=1, prominence=0.0001, width=3,)
+        peaks, hh = ssig.find_peaks(ybl, **kwargs)
+
+        if len(peaks) == 0:
+            return 'No peaks found'
+
+        dp = np.mean(np.diff(x))
+        x = np.concatenate([np.linspace(x[0] - (dp * 9), x[0], 10), x, np.linspace(x[-1], x[-1] + (dp * 9), 10)])
+
+        yo = np.concatenate([(pad * 0), yo, (pad * 0)])
+        ys = np.concatenate([(pad * 0), ys, (pad * 0)])
+        lyo = len(yo)
+        idxp = [i for i, p in enumerate(peaks) if p > 11 and p <= (lyo - 12)]
+
+        if len(idxp) == 0:
+            return 'No peaks found'
+        elif len(idxp) < len(peaks):
+            h1 = {}
+            [h1.update({k: dat[idxp]}) for k, dat in hh.items()]
+            peaks = peaks[idxp]
+            hh = h1
+
+        hh['peak_heights'] = yo[peaks]
+        hh['right_ips'] = np.array([i if i < len(yo) else len(yo) - 1 for i in hh['right_ips'].astype(int)])
+        hh['left_ips'] = np.array([i if i >= 0 else 0 for i in hh['left_ips'].astype(int)])
+        hh['right_bases'] = np.array([i if i < len(yo) else len(yo) - 1 for i in hh['right_bases'].astype(int)])
+        hh['left_bases'] = np.array([i if i >= 0 else 0 for i in hh['left_bases'].astype(int)])
+
+        succ, res, areas, yest, params, comp = self.decon1(x, yo, peaks, hh, ax=[None, None], plot=False)
+        # [result.success, np.sum((psum - y) ** 2), acomp, yest, result.x]
+        rec = {'x': x, 'yo': yo, 'ys': ys, 'bl': baseline, 'ybl': ybl, 'peaks': peaks, 'hh': hh, 'ithresh': ithresh, 'yest': yest, 'ycomps': comp}
+
+            #prep peak list, one row pear peak
+            # loc, lw + a(skewness), scaling,
+        r = []
+        for i, p in enumerate(peaks):
+            A, a, mu, sig = params[(((i+1)*4)-4):((i+1)*4)]
+            r.append({'fid': fid, 'sim': sim, 'pid': i, 'mu_pp': x[p], 'mu_decon': mu, 'a': a, 'sig': sig, 'A': A/s, 'prom': hh['prominences'][i], 'hmax': hh['width_heights']/s,  'fwhm': x[hh['right_ips'][i]] - x[hh['left_ips'][i]], })
+
+        return [rec, r]
+
+
 
 # epath = '/Users/torbenkimhofer/Desktop/Torben19Aug.exp'
 epath='/Users/TKimhofer/Downloads/Torben19Aug.exp'
@@ -711,16 +856,24 @@ dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_SER_LTR_Ca
 dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_URN_LTR_Cal5_106.mzML'
 dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_PLA_unhealthy_18.raw'
 pUH=TrpExp.waters(dpath, efun=ReadExpPars(epath))
-pUH.quant(height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
-
+df=pUH.extractData(f)
+x=df['d'][0][1]
+y=df['d'][0][2]
+ff=pUH.featquant(x, y, f, 0, height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
+pUH.featplot(ff)
+plt.plot(x, y)
 
 
 dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_PLA_unhealthy_Cal2_42.raw'
 pUHcal2=TrpExp.waters(dpath, efun=ReadExpPars(epath))
-pUHcal2.quant(height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
+pUHcal2.q(height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
+pUHcal2.qFunction('FUNCTION 2', sir='2', height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
+pUHcal2.qFunction('FUNCTION 2', sir='1', height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
+pUHcal2.qFunction('FUNCTION 2', sir=None, height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
 
 
-s=pUHcal2.qs['FUNCTION 1'][1][1]
+
+s=pUHcal2.qs['FUNCTION 3'][1][1]
 pUH.qs['FUNCTION 1'][1][1]
 pUHcal2.qs['FUNCTION 1'][1][0][0:3]
 pUH.qs['FUNCTION 1'][1][0][0:3]
@@ -749,14 +902,7 @@ for f in fh:
     pobj.quant(height=0.1, distance=1, prominence=0.2, width=3, wlen=17, plot=False)
     res.append(pobj)
 
-
-
-
-
-
-
-
-df=test.extractData('FUNCTION 3')
+# df=test.extractData('FUNCTION 3')
 
 import scipy.signal as ss
 ra=[]
@@ -772,6 +918,7 @@ for i,f in enumerate(test.efun.funcs.keys()):
         # r = df['d'][l]
         x=r[1]
         y=r[2]
+        self.featquant(x, y, height=0.1, distance=5, prominence=0.1, width=1)
         # plt.plot(x,y)
         res=test.ppick(x, y, plot=True, height=0.1, distance=1, prominence=0.0001, width=3, wlen=17)
         # res=ppick(x, y, plot=True, height=0.1, distance=1, prominence=0.0001, width=3, wlen=17)
@@ -806,54 +953,6 @@ for i in range(1, len(g)):
 
 
 plt.plot(x, y)
-
-
-
-
-
-#  how often changes
-rr = [x[2] for x in ra][0]
-plt.plot(np.sort(rr))
-id=np.argsort([x for x in rr])
-s=0
-for s in range(20):
-    f=ra[id[s]][0]
-    r=test.extractData(f)['d'][ra[id[s]][1]]
-    plt.figure()
-    plt.plot(r[1], r[2])
-
-
-ra[id[s]][0]
-ra[25][0]
-ra[25][1]
-g=np.gradient(y)
-gq=[1 for i in range(1,len(g)) if np.sign(g[i-1]) != np.sign(g[i])]
-plt.plot(x[1:], gq)
-np.sum(gq)/len(x)
-plt.plot(gq)
-plt.plot(x, y)
-plt.plot(x, ss.detrend(y, axis=0))
-out=ss.periodogram(y)
-plt.plot(out[0], out[1])
-
-out=si.PchipInterpolator(x, y)
-out.x
-out.
-
-win=20
-n = len(y) // win
-cb = [np.argmin(y[(win*i - win):(win*i)])+(win*i - win) for i in range(1, n+1)] + [np.argmin(y[((n) * win):])+((n) * win)]
-yb = si.pchip_interpolate(x[cb], y[cb], x)
-plt.scatter(x[cb], y[cb], c='red')
-plt.plot(x,y)
-plt.plot(x,y-yb)
-
-test.plotEfun('3')
-df=test.extractData('FUNCTION 3')
-sub=df['d'][0]
-sub=df['d'][1]
-plt.plot(sub[1], sub[2])
-efun = ReadExpPars(epath)
 
 
 
