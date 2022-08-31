@@ -371,23 +371,6 @@ class TrpExp:
             'a29': {'analyte': {'FUNCTION 7': 'Tyramine'}},
         }
         self.qs = {}
-    #
-    # @staticmethod
-    # def blcor(x, y, wlenF=0.4, rety=True):
-    #     import scipy.interpolate as si
-    #     wlen = round(len(x) * wlenF)
-    #     n = len(y) // wlen
-    #     cb = [np.argmin(y[(wlen * i - wlen):(wlen * i)]) + (wlen * i - wlen) for i in range(1, n + 1)]
-    #     if (len(y) % wlen) > 0:
-    #         cb = cb + [np.argmin(y[((n) * wlen):]) + ((n) * wlen)]
-    #     # yb = si.pchip_interpolate(x[cb], y[cb], x)
-    #     f = si.interp1d(x[cb], y[cb], fill_value="extrapolate")
-    #
-    #     if rety:
-    #         ybl = y - f(x)
-    #         return np.array([y[i] if ybl[i] > y[i] else ybl[i] for i in range(len(ybl))])
-    #     else:
-    #         return f(x)
 
     @staticmethod
     def smooth(y, wlen=21):
@@ -396,7 +379,7 @@ class TrpExp:
         # return ys
 
     @staticmethod
-    def decon1(x, y, peaks, hh, plot=True, ax=[None, None]):
+    def decon1(x, y, peaks, hh):
         def cost(params):
             n = round(len(params) / 4)
             est = np.zeros_like(x)
@@ -417,8 +400,6 @@ class TrpExp:
         bounds = []
         for i in range(len(peaks)):
             A = hh['peak_heights'][i]
-            if A < 0:
-                continue
             a = 2
             mu = x[peaks[i]]
             w = round(hh['widths'][i] / 2)
@@ -446,32 +427,33 @@ class TrpExp:
             acomp.append(np.trapz(est))
             comp.append(est)
             psum += est
-
-        return [result.success, np.sqrt(np.sum((psum - y) ** 2)), acomp, yest, result.x, comp]
+        return [result.success, np.sqrt(np.sum((psum - y) ** 2)), acomp, psum, result.x, comp]
 
     @staticmethod
     def blcor(y, rety=True):
         # from scipy.interpolate import UnivariateSpline
         import pybaselines as bll
-        ybl=bll.whittaker.iasls(y, lam=1e2)[0]
-        # plt.plot(x, ybl)
+        # ybl1=bll.whittaker.iasls(y, lam=1e4)[0]
+        # ybl1=bll.polynomial.imodpoly(ys, x, poly_order=4)[0]
+        ybl=bll.morphological.mor(y, half_window=100)[0]
+        # plt.plot(x, ybl1)
         # plt.plot(x, y)
         if rety:
             return y - ybl
         else:
             return ybl
 
-    def qFunction(self, fid, sir = None, plot=True):
-        # height = 0.1, distance = 1, prominence = 0.1, width = 3, wlen = 17
+    def qFunction(self, fid, sir = None, plot=True, **kwargs):
+        # height = 0.1, distance = 1, prominence = 1, width = 3, wlen = 27
         f = self.efun.funcs[fid]
         df = self.extractData(fid)
 
         if sir is not None:
             print(fid)
-            print(f"SIR {sir}: {f.reactions[sir]}")
+            print(f"SIR {sir}: {f.reactions[str(sir)]}")
             r = df['d'][int(sir)-1]
             l = int(sir)
-            qsf = self.featquant(r[1], r[2], f, l, height=0.1, distance=1, prominence=0.1, width=3, wlen=17)
+            qsf = self.featquant(r[1], r[2], fid, l, **kwargs)
             if plot:
                 self.featplot(qsf)
             if fid not in self.qs:
@@ -483,21 +465,28 @@ class TrpExp:
             qsf = {}
             for l, r in enumerate(df['d']):
                 print(f"SIR {l}: {f.reactions[str(l+1)]}")
-                qsf[l] = self.featquant(r[1], r[2], f, l, height=0.1, distance=1, prominence=0.1, width=3, wlen=17)
+                qsf[l] = self.featquant(r[1], r[2], fid, l, **kwargs)
+                if plot and isinstance(qsf[l], list):
+                    self.featplot(qsf[l])
             self.qs[fid] = qsf
 
     # run ppick over all functions, record residuals and
-    def q(self, plot=True):
+    def q(self, plot=True,  **kwargs):
         # height = 0.1, distance = 1, prominence = 0.1, width = 3, wlen = 17
+        # height = 0.1, distance = 1, prominence = 0.1, width = 3,
         qsf = {}
         for i, f in enumerate(self.efun.funcs.keys()):
-            qsf[f] = {}
-            df = self.extractData(f)
-            for l, r in enumerate(df['d']):
-                print(f"SIR {l+1}: {self.efun.funcs[f].reactions[str(l+1)]}")
-                qsf[f][l] = self.featquant(r[1], r[2], f, l, height = 0.1, distance = 1, prominence = 0.1, width = 3, wlen = 21)
-                if plot:
-                    self.featplot(qsf[f][l])
+            try:
+                qsf[f] = {}
+                df = self.extractData(f)
+                print(f)
+                for l, r in enumerate(df['d']):
+                    print(f"SIR {l + 1}: {self.efun.funcs[f].reactions[str(l + 1)]}")
+                    qsf[f][l] = self.featquant(r[1], r[2], f, l, **kwargs)
+                    if plot and isinstance(qsf[f][l], list):
+                        self.featplot(qsf[f][l])
+            except:
+                pass
         self.qs = qsf
 
     def extractData(self, fid):
@@ -539,7 +528,7 @@ class TrpExp:
         cols = plt.get_cmap('Set1').colors
         ci = 0
         for pi, p in enumerate(ff[0]['peaks']):
-            axs[0].annotate(round(ff[0]['hh']['prominences'][pi], 1), (ff[0]['x'][p], ff[0]['hh']['peak_heights'][pi]), textcoords='offset pixels', xytext=(-4, 10), rotation=90)
+            axs[0].annotate(round(ff[0]['hh']['prominences'][pi], 1), (ff[0]['x'][p], ff[0]['hh']['peak_heights'][pi]), textcoords='offset pixels', xytext=(-4, 10), rotation=90, zorder=12)
             peak_width = round(ff[0]['hh']['widths'][pi] / 2)
             idx_left = max([0, p - peak_width])
             idx_right = min([lyo - 1, p + peak_width])
@@ -550,7 +539,7 @@ class TrpExp:
             ci += 1
             if ci >= len(cols):
                 ci = 0
-        axs[2].plot(ff[0]['x'], ff[0]['yo']-ff[0]['yest'][0], c='black')
+        axs[2].plot(ff[0]['x'], ff[0]['yo']-ff[0]['yest'], c='black')
         axs[0].scatter(ff[0]['x'][ff[0]['peaks']], np.repeat(pso, len(ff[0]['peaks'])), c='black', s=20)
         axs[0].scatter(ff[0]['x'][ff[0]['peaks']], np.repeat(pso, len(ff[0]['peaks'])), c='white', s=5, zorder=10)
 
@@ -590,10 +579,13 @@ class TrpExp:
         dp = np.mean(np.diff(x))
         x = np.concatenate([np.linspace(x[0] - (dp * 9), x[0], 10), x, np.linspace(x[-1], x[-1] + (dp * 9), 10)])
 
-        yo = np.concatenate([(pad * 0), yo, (pad * 0)])
-        ys = np.concatenate([(pad * 0), ys, (pad * 0)])
+        yo = np.concatenate([np.flip(em) *(pad * yo[0]), yo, em * (pad * yo[-1])])
+        ys = np.concatenate([em * (pad * ys[0]), ys, em * (pad * ys[-1])])
         lyo = len(yo)
-        idxp = [i for i, p in enumerate(peaks) if p > 11 and p <= (lyo - 12)]
+        hh['peak_heights'] = yo[peaks]
+        pro5max = max(hh['prominences'])*0.1
+        idxp = [i for i, p in enumerate(peaks) if ((p > 11 and p <= (lyo - 12)) and \
+            (hh['peak_heights'][i] > 0) and (hh['peak_heights'][i] > pro5max))]
 
         if len(idxp) == 0:
             return 'No peaks found'
@@ -603,13 +595,12 @@ class TrpExp:
             peaks = peaks[idxp]
             hh = h1
 
-        hh['peak_heights'] = yo[peaks]
         hh['right_ips'] = np.array([i if i < len(yo) else len(yo) - 1 for i in hh['right_ips'].astype(int)])
         hh['left_ips'] = np.array([i if i >= 0 else 0 for i in hh['left_ips'].astype(int)])
         hh['right_bases'] = np.array([i if i < len(yo) else len(yo) - 1 for i in hh['right_bases'].astype(int)])
         hh['left_bases'] = np.array([i if i >= 0 else 0 for i in hh['left_bases'].astype(int)])
 
-        succ, res, areas, yest, params, comp = self.decon1(x, yo, peaks, hh, ax=[None, None], plot=False)
+        succ, res, areas, yest, params, comp = self.decon1(x, yo, peaks, hh)
         # [result.success, np.sum((psum - y) ** 2), acomp, yest, result.x]
         rec = {'x': x, 'yo': yo, 'ys': ys, 'bl': baseline, 'ybl': ybl, 'peaks': peaks, 'hh': hh, 'ithresh': ithresh, 'yest': yest, 'ycomps': comp}
 
@@ -620,29 +611,141 @@ class TrpExp:
 
         return [rec, r]
 
+test=Eset(dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', n=300)
+
+class Eset:
+    def __init__(self, dpath='/Users/torbenkimhofer/tdata_trp/', n=10, epath=None):
+        self.ef = ReadExpPars(epath)
+        self.df = {}
+        self.exp = []
+        c = 0
+        for d in os.listdir(dpath):
+            if c > n:
+                break
+            if bool(re.findall(".*raw$", d)):
+                # if bool(re.findall(".*22_SER_LTR_[0-9].*|.*22_PLA_LTR_[0-9].*", d)):
+                    efile = TrpExp.waters(os.path.join(dpath, d), efun=self.ef, convert=False)
+                    kwargs = dict(height=0.1, distance=10, prominence=1, width=7, wlen=9, rel_height=0.7)
+                    efile.q(**kwargs, plot=False)
+                    self.exp.append(efile)
+                    self.df.update(
+                        {efile.fname: {'nfun': {k: len(x.fid) for k, x in efile.dfd.items()}, 'dt': efile.aDt}})
+                    c += 1
+
 
 
 # epath = '/Users/torbenkimhofer/Desktop/Torben19Aug.exp'
 epath='/Users/TKimhofer/Downloads/Torben19Aug.exp'
 dpath='/Volumes/ANPC_ext1/tdata_trp/RCY_TRP_023_Robtot_Spiking_04Aug2022_URN_LTR_Cal2_110.raw'
 dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_PLA_LTR_Cal5_28.raw'
-
 dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_SER_LTR_Cal5_65.raw'
-
 dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_URN_LTR_Cal5_106.mzML'
 dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_PLA_unhealthy_18.raw'
+
+
+epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp'
+dpath='/Users/torbenkimhofer/tdata_trp/RCY_TRP_023_Robtot_Spiking_04Aug2022_SER_LTR_52.raw'
+dpath='/Users/torbenkimhofer/tdata_trp/RCY_TRP_023_Robtot_Spiking_04Aug2022_PLA_LTR_15.raw'
+
+dpath='/Users/torbenkimhofer/tdata_trp/NW_TRP_023_manual_Spiking_05Aug2022_PLA_LTR_13.raw'
+dpath='/Users/torbenkimhofer/tdata_trp/NW_TRP_023_manual_Spiking_05Aug2022_SER_LTR_50.mzML'
 pUH=TrpExp.waters(dpath, efun=ReadExpPars(epath))
-pUH.q()
+pUH.qFunction(fid='FUNCTION 22', sir = None, plot=True, **kwargs)
+[x['A'] for x in pUH.qs['FUNCTION 22'][1][1]]
+# 31, 17, 15
+
+kwargs= dict(height = 0.1, distance = 10, prominence = 1, width = 7, wlen=9, rel_height=0.7)
+pUH.q(**kwargs)
 self=pUH
 
 
-df=pUH.extractData(f)
-x=df['d'][0][1]
-y=df['d'][0][2]
-ff=pUH.featquant(x, y, f, 0, height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
-pUH.featplot(ff)
-plt.plot(x, y)
+def featplot1(ff, axs):
+    # rec = {'x': x, 'yo': yo, 'ys': ys, 'bl': baseline, 'peaks': peaks, 'hh': hh, 'ithresh': ithresh} # ybl
+    axs[2].text(1.03, 0, self.fname, rotation=90, fontsize=6, transform=axs[2].transAxes)
+    pso = -(0.2 * max(ff[0]['yo']))
+    pso_up = -(0.1 * max(ff[0]['yo']))
+    pso_low = -(0.3 * max(ff[0]['yo']))
 
+    # axs[0].fill_between(x=ff[0]['x'], y1=ff[0]['yo'], color='white', alpha=1, zorder=10)
+    axs[0].plot(ff[0]['x'], ff[0]['yo'], c='black', label='ori', zorder=11)
+    axs[0].plot(ff[0]['x'], ff[0]['ys'], label='sm', c='gray', linewidth=1, zorder=11)
+    axs[0].plot(ff[0]['x'], ff[0]['ybl'], label='sm-bl', c='cyan', linewidth=1, zorder=11)
+    axs[0].hlines(0.1, ff[0]['x'][0], ff[0]['x'][-1], color='gray', linewidth=1, linestyle='dashed', zorder=0)
+    axs[0].vlines(ff[0]['x'][ff[0]['hh']['left_bases']], pso_low, pso_up, color='gray', zorder=11)
+    axs[0].vlines(ff[0]['x'][ff[0]['hh']['right_bases']], pso_low, pso_up, color='gray', zorder=11)
+    axs[0].vlines(ff[0]['x'][ff[0]['hh']['left_ips']], 0, ff[0]['hh']['width_heights'], color='gray', linewidth=1,
+                  linestyle='dotted', zorder=11)
+    axs[0].vlines(ff[0]['x'][ff[0]['hh']['right_ips']], 0, ff[0]['hh']['width_heights'], color='gray', linewidth=1,
+                  linestyle='dotted', zorder=11)
+
+    # axs[0].scatter(x[peaks], hh['peak_heights'], c='red')
+    lyo = len(ff[0]['x'])
+    cols = plt.get_cmap('Set1').colors
+    ci = 0
+    for pi, p in enumerate(ff[0]['peaks']):
+        # axs[0].annotate(round(ff[0]['hh']['prominences'][pi], 1), (ff[0]['x'][p], ff[0]['hh']['peak_heights'][pi]),
+        #                 textcoords='offset pixels', xytext=(-4, 10), rotation=90, zorder=12)
+        peak_width = round(ff[0]['hh']['widths'][pi] / 2)
+        idx_left = max([0, p - peak_width])
+        idx_right = min([lyo - 1, p + peak_width])
+        axs[0].hlines(pso, ff[0]['x'][idx_left], ff[0]['x'][idx_right], color=cols[ci])
+
+        axs[1].plot(ff[0]['x'], ff[0]['ycomps'][pi], color=cols[ci], linewidth=1)
+        axs[1].fill_between(x=ff[0]['x'], y1=ff[0]['ycomps'][pi], color=cols[ci], alpha=0.4)
+        ci += 1
+        if ci >= len(cols):
+            ci = 0
+    axs[2].plot(ff[0]['x'], ff[0]['yo'] - ff[0]['yest'], c='black')
+    axs[0].scatter(ff[0]['x'][ff[0]['peaks']], np.repeat(pso, len(ff[0]['peaks'])), c='black', s=20)
+    axs[0].scatter(ff[0]['x'][ff[0]['peaks']], np.repeat(pso, len(ff[0]['peaks'])), c='white', s=5, zorder=10)
+
+    axs[1].plot(ff[0]['x'], ff[0]['yo'], c='black', label='ori')
+    axs[1].plot(ff[0]['x'], np.sum(ff[0]['ycomps'], 0), label='psum', c='orange')
+
+fig, axs = plt.subplots(3, 1, sharex=True, gridspec_kw={'height_ratios': [1, 1, 0.4]})
+r = 1
+ar={}
+f='FUNCTION 22'
+for i in range(len(test.exp)):
+    pUH=test.exp[i]
+    try:
+        # featplot1(pUH.qs[f][r], axs)
+        ar[pUH.fname] = max([x['A'] for x in pUH.qs['FUNCTION 22'][1][1]])
+
+    except:
+        pass
+
+dd =pd.DataFrame(ar, index=[0]).T
+dd.index.str.contains('manual')
+c=['blue']*dd.shape[0]
+cols=['blue' if 'manual' in x else 'red' for x in dd.index]
+
+dd[dd.index.str.contains('manual|')].std()
+plt.scatter(range(len(cols)), dd[0], c=cols)
+plt.xlabel('index')
+plt.ylabel('Area')
+# axs[0].legend()
+plt.suptitle(f"{f}\n{pUH.efun.funcs[f].reactions[str(r)]}")
+
+{'a1': {'std': {'FUNCTION 5': 'Picolinic acid-D3'},
+       'analyte': {'FUNCTION 4': 'Picolinic/nicotinic acid/Nicolinic acid'}},
+'a2': {'std': {'FUNCTION 6': 'Nicotinic acid-D4'},
+       'analyte': {'FUNCTION 4': 'Picolinic/nicotinic acid/Nicolinic acid'}},
+'a3': {'std': {'FUNCTION 10': '3-HAA-D3'}, 'analyte': {'FUNCTION 8': '3-HAA'}},
+'a4': {'std': {'FUNCTION 11': 'Dopamine-D4'}, 'analyte': {'FUNCTION 9': 'Dopamine'}},
+'a5': {'std': {'FUNCTION 20': 'Serotonin-d4'}, 'analyte': {'FUNCTION 12': 'Serotonin'}},
+'a6': {'std': {'FUNCTION 14': 'Tryptamine-d4'}, 'analyte': {'FUNCTION 13': 'Tryptamine'}},
+'a7': {'std': {'FUNCTION 17': 'Quinolinic acid-D3'}, 'analyte': {'FUNCTION 15': 'Quinolinic acid'}},
+'a8': {'std': {'FUNCTION 19': 'I-3-AA-D4'}, 'analyte': {'FUNCTION 18': 'I-3-AA'}},}
+
+#prominence should be more than 5% of max prominence
+
+# df=pUH.extractData(f)
+# x=df['d'][0][1]
+# y=df['d'][0][2]
+# ff=pUH.featquant(x, y, f, 0, height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
+# pUH.featplot(ff)
+# plt.plot(x, y)
 
 dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_PLA_unhealthy_Cal2_42.raw'
 pUHcal2=TrpExp.waters(dpath, efun=ReadExpPars(epath))
