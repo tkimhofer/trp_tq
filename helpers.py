@@ -648,16 +648,21 @@ dpath='/Users/torbenkimhofer/tdata_trp/RCY_TRP_023_Robtot_Spiking_04Aug2022_SER_
 dpath='/Users/torbenkimhofer/tdata_trp/RCY_TRP_023_Robtot_Spiking_04Aug2022_PLA_LTR_15.raw'
 
 dpath='/Users/torbenkimhofer/tdata_trp/NW_TRP_023_manual_Spiking_05Aug2022_PLA_LTR_13.raw'
-dpath='/Users/torbenkimhofer/tdata_trp/NW_TRP_023_manual_Spiking_05Aug2022_SER_LTR_50.mzML'
-pUH=TrpExp.waters(dpath, efun=ReadExpPars(epath))
-pUH.qFunction(fid='FUNCTION 22', sir = None, plot=True, **kwargs)
-[x['A'] for x in pUH.qs['FUNCTION 22'][1][1]]
-# 31, 17, 15
 
+import time
+a=time.time()
+dpath='/Users/torbenkimhofer/Downloads/test/NW_TRP_023_manual_Spiking_05Aug2022_PLA_LTR_16.raw'
+pUH=TrpExp.waters(dpath, efun=ReadExpPars(epath))
+b=time.time()
+# pUH.qFunction(fid='FUNCTION 22', sir = None, plot=True, **kwargs)
+# [x['A'] for x in pUH.qs['FUNCTION 22'][1][1]]
+# # 31, 17, 15
+c1=time.time()
 kwargs= dict(height = 0.1, distance = 10, prominence = 1, width = 7, wlen=9, rel_height=0.7)
 pUH.q(**kwargs)
-self=pUH
+# self=pUH
 
+c=time.time()
 
 def featplot1(ff, axs):
     # rec = {'x': x, 'yo': yo, 'ys': ys, 'bl': baseline, 'peaks': peaks, 'hh': hh, 'ithresh': ithresh} # ybl
@@ -705,15 +710,24 @@ def featplot1(ff, axs):
 fig, axs = plt.subplots(3, 1, sharex=True, gridspec_kw={'height_ratios': [1, 1, 0.4]})
 r = 1
 ar={}
-f='FUNCTION 22'
+f='FUNCTION 6'
+c=2
+print(len(test.exp[i].qs[f]))
 for i in range(len(test.exp)):
     pUH=test.exp[i]
     try:
-        # featplot1(pUH.qs[f][r], axs)
-        ar[pUH.fname] = max([x['A'] for x in pUH.qs['FUNCTION 22'][1][1]])
+        featplot1(pUH.qs[f][r], axs)
+        ar[pUH.fname] = max([x['A'] for x in pUH.qs[f][r][1]])
+        c +=1
 
     except:
         pass
+print(c)
+fig.suptitle(f'{f}.{r}\n{pUH.efun.funcs[f].reactions[str(r+1)].__repr__().rstrip()}, n={c}/{len(test.exp)}')
+
+# consesnus:
+extract data, align data based on IS signal, minmax scaling - train autoencoder, calc similarity
+
 
 dd =pd.DataFrame(ar, index=[0]).T
 dd.index.str.contains('manual')
