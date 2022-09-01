@@ -6,6 +6,134 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
 from tensorflow.keras import layers, losses
 from tensorflow.keras.models import Model
+import pandas as pd
+import numpy as np
+import re
+
+def matchC(rec, fis, fa, sirIS, sirA, locDev=60/10, sumC=False, maxi=False):
+    # select fitted components of IS and match to components of analyte
+    # locDev: allowed rt deviation (10%->6 sec)
+    if fis not in rec.qs.keys() or fa not in rec.qs.keys():
+        return [dict(info= 'function not found', sid=rec.fname, fID=fIS, fA=fA, tA=None, tIS = None, sirIS=sirIS, sirA=sirA, cidIS=None, cidA=None, aIS=None, aA=None, aR=None)]
+
+    recIS = rec.qs[fis]
+    recA = rec.qs[fa]
+    # print(recIS[sirIS][1])
+    # print(rec.efun.funcs[fIS].reactions)
+    # print(rec.efun.funcs[fIS].reactions)
+    tis = rec.efun.funcs[fIS].reactions[str(sirIS + 1)]
+    ta = rec.efun.funcs[fA].reactions[str(sirA + 1)]
+
+    if not isinstance(recIS[sirIS], list) or not isinstance(recA[sirA], list):
+        return [dict(info= 'sir not found', sid=rec.fname, fID=fIS, fA=fA, tA=ta, tIS = tis, sirIS=sirIS, sirA=sirA, cidIS=None, cidA=None, aIS=None, aA=None, aR=None)]
+    locIS = [x['mu_decon'] for x in recIS[sirIS][1]]
+    locA = [x['mu_decon'] for x in recA[sirA][1]]
+
+
+    # find matches
+    mm=[]
+    for i, li in enumerate(locIS):
+        a_is = recIS[sirIS][1][i]['A']
+        res = [(k, la) for k, la in enumerate(locA) if abs(li-la)<locDev]
+
+        if len(res) == 0:
+            d=dict(sid=rec.fname, fID=fIS, fA=fA, tA=ta, tIS = tis, sirIS=sirIS, sirA=sirA, cidIS=i, cidA=None, aIS=a_is, aA=None, aR=None)
+        else:
+            vals = [x[1] for x in res]
+            idx_min=res[vals.index(min(vals))][0]
+            a_a = recA[sirA][1][idx_min]['A']
+            d=dict(info= 'quantified comp', sid=rec.fname, fID=fIS, fA=fA, tA=ta, tIS = tis, sirIS=sirIS, sirA=sirA, cidIS=i, cidA=idx_min, aIS=a_is, aA=a_a, aR=a_a/a_is)
+        mm.append(d)
+
+    if sumC:
+        ais=0
+        aa=0
+        for i, dd in enumerate(d):
+            ais += d['aIS']
+            aa += d['aA']
+        mm=[dict(info= 'quantified sum', sid=rec.fname, fID=fIS, fA=fA, tA=ta, tIS = tis, sirIS=sirIS, sirA=sirA, cidIS=i, cidA=idx_min, aIS=ais, aA=aa, aR=aa/ais)]
+
+    if maxi and len(mm)>1:
+        intis = [x['aIS'] for x in mm]
+        idx=intis.index(max(intis))
+        mm=[mm[idx]]
+
+    return mm
+
+
+
+
+
+
+    locIS = [x['mu_decon'] for x in rec[sirIS][1]]
+    locA = [x['mu_decon'] for x in rec[sirA][1]]
+
+    # return ratios A/IS
+
+def cat(x):
+    if bool(re.findall('22_DB_[0-9].*', x)):
+        return 'DB'
+    elif bool(re.findall('22_Cal[0-9]_[0-9].*', x)):
+        return x.split('_')[-2]
+    elif bool(re.findall('22_PLA_unhealthy_[0-9].*', x)):
+        return 's1P'
+    elif bool(re.findall('22_SER_unhealthy_[0-9].*', x)):
+        return 's1S'
+    elif bool(re.findall('22_URN_unhealthy_[0-9].*', x)):
+        return 's1U'
+    elif bool(re.findall('22_PLA_healthy_[0-9].*', x)):
+        return 's0P'
+    elif bool(re.findall('22_SER_healthy_[0-9].*', x)):
+        return 's0S'
+    elif bool(re.findall('22_URN_healthy_[0-9].*', x)):
+        return 's0U'
+    elif bool(re.findall('22_PLA_LTR_[0-9].*', x)):
+        return 'rP'
+    elif bool(re.findall('22_SER_LTR_[0-9].*', x)):
+        return 'rS'
+    elif bool(re.findall('22_URN_LTR_[0-9].*', x)):
+        return 'rU'
+    elif bool(re.findall('22_PLA_unhealthy_Cal[0-9]_[0-9].*', x)):
+        return 's1P_'+x.split('_')[-2]
+    elif bool(re.findall('22_SER_unhealthy_Cal[0-9]_[0-9].*', x)):
+        return 's1S_'+x.split('_')[-2]
+    elif bool(re.findall('22_URN_unhealthy_Cal[0-9]_[0-9].*', x)):
+        return 's1U_'+x.split('_')[-2]
+    elif bool(re.findall('22_PLA_healthy_Cal[0-9]_[0-9].*', x)):
+        return 's0P_' + x.split('_')[-2]
+    elif bool(re.findall('22_SER_healthy_Cal[0-9]_[0-9].*', x)):
+        return 's0S_' + x.split('_')[-2]
+    elif bool(re.findall('22_URN_healthy_Cal[0-9]_[0-9].*', x)):
+        return 's0U_' + x.split('_')[-2]
+
+    elif bool(re.findall('22_PLA_LTR_Cal[0-9]_[0-9].*', x)):
+        return 'rP_'+x.split('_')[-2]
+    elif bool(re.findall('22_SER_LTR_Cal[0-9]_[0-9].*', x)):
+        return 'rS_'+x.split('_')[-2]
+    elif bool(re.findall('22_URN_LTR_Cal[0-9]_[0-9].*', x)):
+        return 'rU_'+x.split('_')[-2]
+    else:
+        return 'unassigned'
+
+def createMetaDf(test):
+    nam = [x.fname for x in test.exp]
+    cats = [cat(x.fname) for x in test.exp]
+    df = pd.DataFrame({'cats': cats, 'nam': nam})
+    df['cats'].value_counts()
+    rep = df[df['cats'] == '2']['nam'].str.split('_').str[-3]
+    df.loc[df['cats'] == '2', 'cats'] = rep
+    df['dt'] = [x.aDt for x in test.exp]
+
+    add = ['Average System Pressure', 'Minimum System Pressure', 'Maximum System Pressure',
+           'Total Injections on Column', 'Sample Description', 'Bottle Number']
+
+    meta = pd.DataFrame([x.edf for x in test.exp])
+    df1 = pd.concat([df, meta[add]], axis=1)
+    df1['ind'] = np.arange(df1.shape[0])
+    df1 = df1.sort_values('dt')
+
+    return df1
+
 
 class AnomalyDetector(Model):
   def __init__(self):
@@ -40,7 +168,10 @@ def fnorm(dat, xnew):
     return yi / max(yi)
     # return yi
   
-ss=Eset.importbinary(dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', pat='URN', n=100)
+ss=Eset.importbinary(dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', pat='', n=600)
+df=createMetaDf(ss)
+df.index=df.nam
+
 # ss=Eset.imp(dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', pat='', n=1000)
 
 # ss.exp[0]
@@ -51,12 +182,30 @@ ss=Eset.importbinary(dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/tor
 #
 # kwargs = dict(height=0.1, distance=10, prominence=1, width=7, wlen=9, rel_height=0.7)
 # x.qFunction(f, 2, plot=True, **kwargs, )
-i=2
-fIS=list(ss.exp[i].fmap['a9']['std'].keys())[0]
-fA=list(ss.exp[i].fmap['a9']['analyte'].keys())[0]
-ss.exp[i].featplot(ss.exp[i].qs[fIS][1])
-ss.exp[i].featplot(ss.exp[i].qs[fA][1])
+pair='a30'
+i=10
+# xx=[x for x in ss.exp if x.fname == 'RCY_TRP_023_Robtot_Spiking_04Aug2022_SER_unhealthy_Cal2_80.raw'][0]
+# fIS=list(ss.exp[i].fmap[pair]['std'].keys())[0]
+fIS='FUNCTION 3'
+fIS='FUNCTION 10'
+fIS='FUNCTION 28'
+fIS='FUNCTION 14'
 
+fA=list(ss.exp[i].fmap[pair]['analyte'].keys())[0]
+
+ss.exp[i].featplot(ss.exp[i].qs[fIS][1])
+ss.exp[i].featplot(ss.exp[i].qs[fA][0])
+
+xx.featplot(xx.qs[fIS][0])
+xx.featplot(xx.qs[fA][1])
+# a15: Fx.0 and Fx.1 matching
+# a14: onlye Fx.0 matching pair, Fx.1 not exist for IS
+# a13: F36.0 (IS), F32.1 (A) matching, F32.0 not paired
+# a12: Xanthurenic acid: additoinal signal that is max but nor relevant
+# a6: F6.0 with F14.1 (no 6.1 and no 14.0)
+# a5: more than peak in analyte Fx0 and Fx1 (F.x2 the same)
+# a7: 17.1 and 15.1 not matching in transition
+# a8: 19.0 with 18.1 (forget the others)
 def getA(dat):
     iid=np.argmax([x['A'] for x in dat[1]])
     return dat[1][iid]['A']
@@ -67,40 +216,136 @@ getA(x.qs[f][sir])
 14,13
 17, 15
 
-f='FUNCTION 11' # piclolinic acid
-fa='FUNCTION 9' # piclolinic acid
-f=fIS
-fa=fA
-data = []
+# f='FUNCTION 11' # piclolinic acid
+# fa='FUNCTION 9' # piclolinic acid
+
+# data = []
 sirIS=0
 sirA=1
 ar = []
+quants=[]
 for i, x in enumerate(ss.exp):
     # x.featplot(x.qs[f][1])
-    if i==0:
-        xra = [-0.3, 0.3, 500]
-        xnew = np.linspace(*xra)
-    if isinstance(x.qs[f][sirIS], list):
-        data.append(fnorm(x.qs[f][sirIS], xnew))
-    try:
-        ais = getA(x.qs[f][sirIS])
-        aa = getA(x.qs[fa][sirA])
-        ar.append((aa, ais, aa/ais, x.fname))
-    except:
-        pass
+    rec = x
+    quants.append(matchC(rec, fIS, fA, sirIS, sirA, sumC=True, maxi=False))
+len(quants)
+test=pd.DataFrame([item for sublist in quants for item in sublist])
+# plt.scatter(np.arange(test.shape[0]), test.aR)
 
-for i in range(len(ar)):
-    id=ar[i][3].replace('RCY_TRP_023_Robtot_Spiking_04Aug2022_URN_LTR_', '').replace('.raw', '')
-    id = id.replace('NW_TRP_023_manual_Spiking_05Aug2022_URN_LTR_', '').replace('.raw', '')
-    if 'manual' in ar[i][3]:
-        col='green'
+test.index=test.sid
+df1=df.join(test)
+df1['Total Injections on Column']=df1['Total Injections on Column'].astype(int)
+# ct=test.sid.value_counts()
+# rt =test.loc[ct[ct>1].index]
+
+# fig, axs = plt.subplots(2,4)
+vis(df1, title=f"{rec.efun.funcs[fA].reactions[str(sirA+1)]} with {rec.efun.funcs[fIS].reactions[str(sirIS+1)]}",\
+    shy=True, ymax=None)
+
+
+def vis(df1, title, fsize=(9, 6), shy=True, ymax=None):
+    # plt.figure(figsize=fsize)
+    import re
+    def mapPanel(x):
+        if 's1' in x:
+            return 's1'
+        elif 's0' in x:
+            return 's0'
+        elif bool(re.findall('^Cal', x)):
+            return 'cal'
+        elif 'r' in x:
+            return 'ltr'
+        else:
+            return 'uknw'
+
+    df1['type'] = [mapPanel(x) for x in df1.cats]
+    pans = ['rP', 'rS', 'rU', 's1P', 's1S', 's1U']
+
+    cols = plt.get_cmap('tab20c').colors
+    colS = {'rP': cols[3], 'rP_Cal5': cols[2], 'rP_Cal2': cols[1],
+            'rS': cols[7], 'rS_Cal5': cols[6], 'rS_Cal2': cols[5],
+            'rU': cols[11], 'rU_Cal5': cols[10], 'rU_Cal2': cols[9],
+            's1P': cols[3], 's1P_Cal5': cols[2], 's1P_Cal2': cols[1],
+            's1S': cols[7], 's1S_Cal5': cols[6], 's1S_Cal2': cols[5],
+            's1U': cols[11], 's1U_Cal5': cols[10], 's1U_Cal2': cols[9],
+            'Cal': plt.get_cmap('viridis')(np.linspace(0, 1, 8))
+            }
+    fig = plt.figure(figsize=fsize)
+    idp_x = 0
+    idp_y = 0
+    for s, i in enumerate(pans):
+        if ((idp_y+1) % 4) == 0 :
+            idp_x += 1
+            idp_y +=1
+        ds= df1[df1.cats.str.contains(pans[s])].copy()
+        ds['rank']=ds['Total Injections on Column'].rank().astype(int)
+        if s==0:
+            sub1 = fig.add_subplot(2, 4, idp_y + 1)
+            aa= sub1
+        else:
+            if shy:
+                sub1 = fig.add_subplot(2, 4, idp_y + 1, sharey=aa)
+            else:
+                sub1 = fig.add_subplot(2, 4, idp_y + 1)
+                plt.setp(sub1.get_yticklabels(), visible=False)
+        if isinstance(ymax, list):
+            sub1.set_ylim(ymax)
+        sub1.set_yscale('log', base=10)
+        sub1.set_xticks([])
+        sub1.set_title(i)
+        if (idp_y % 4) != 0:
+            plt.setp(sub1.get_yticklabels(), visible=False)
+
+        for r, t in enumerate(ds.cats.unique()):
+            iid = ds.cats == t
+            if bool(re.findall('^Cal', t)):
+                print(int(t.replace('Cal', '')))
+                ccs=colS['Cal'][int(t.replace('Cal', ''))-1]
+            else:
+                ccs=colS[t]
+            # axs[idp_x, idp_y].scatter(ds['Total Injections on Column'][iid], ds.aR[iid], color=ccs, label=t)
+            sub1.scatter(ds['rank'][iid], ds.aR[iid], color=ccs, label=t)
+            sub1.scatter(ds['rank'][iid], ds.aR[iid], color='black', s=0.7)
+
+
+        # axs[idp_x, idp_y].legend()
+        idp_y += 1
+
+    if shy:
+        sub1 = fig.add_subplot(1, 4, 4, sharey=aa)
     else:
-        col='blue'
-    plt.scatter(i, ar[i][2], c=col)
-    plt.annotate(id, (i, ar[i][2]))
+        sub1 = fig.add_subplot(1, 4, 4)
+    ds = df1[df1.cats.str.contains('^Cal')].copy()
+    ds['rank'] = ds['Total Injections on Column'].rank().astype(int)
+    sub1.set_yscale('log')
+    sub1.yaxis.tick_right()
+    sub1.set_xticks([])
+    # sub1.set_ylim([0, 5])
+    for r, t in enumerate(ds.cats.unique()):
+        iid = ds.cats == t
+        ccs = colS['Cal'][int(t.replace('Cal', '')) - 1]
+        sub1.scatter(ds['rank'][iid], ds.aR[iid], color=ccs, label=t)
+        sub1.scatter(ds['rank'][iid], ds.aR[iid], color='grey', s=1.7)
+    sub1.set_title('Cal')
+    fig.suptitle(title)
 
-for i in data:
-    plt.plot(i)
+
+
+# for i in range(len(ar)):
+#     id=ar[i][3].replace('RCY_TRP_023_Robtot_Spiking_04Aug2022_URN_LTR_', '').replace('.raw', '')
+#     id = id.replace('NW_TRP_023_manual_Spiking_05Aug2022_URN_LTR_', '').replace('.raw', '')
+#     if 'manual' in ar[i][3]:
+#         col='green'
+#     else:
+#         col='blue'
+#     plt.scatter(i, ar[i][2], c=col)
+#     plt.annotate(id, (i, ar[i][2]))
+
+
+
+
+# for i in data:
+#     plt.plot(i)
 
 
 autoencoder = AnomalyDetector()
@@ -121,25 +366,27 @@ encoded_data = autoencoder.encoder(rr).numpy()
 decoded_data = autoencoder.decoder(encoded_data).numpy()
 
 
-rp = tf.convert_to_tensor(datap+data)
+rp = tf.convert_to_tensor(data)
 reconstructions = autoencoder.predict(rp)
 train_loss = tf.keras.losses.mae(reconstructions, rp)
 
 # plt.plot(xnew, np.mean(decoded_data, 0), color='red', linewidth=20)
-plt.plot(xnew, rr.numpy().T, color='black', linewidth=1)
-plt.plot(xnew, np.mean(decoded_data, 0), color='red', linewidth=2, label='Autoencoder')
-
+plt.plot(xnew, rr.numpy().T, color='black', linewidth=0.1)
+plt.plot(xnew, np.mean(decoded_data, 0), color='red', linewidth=2, label='Consensus peak AE')
+plt.title(f'{fA}.{sirA}: {x.efun.funcs[fA].reactions[str(sirA+1)]}')
+plt.xlabel('Normalised ST')
+plt.ylabel('Normalised sum of counts')
 plt.legend()
 
-datap = []
+data = []
 # sir=1
 for i, x in enumerate(ss.exp):
     # x.featplot(x.qs[f][1])
     if i == 0:
         xra = [-0.3, 0.3, 500]
         xnew = np.linspace(*xra)
-    if isinstance(x.qs[fa][sirA], list):
-        datap.append(fnorm(x.qs[fa][sirA], xnew))
+    if isinstance(x.qs[fA][sirA], list):
+        data.append(fnorm(x.qs[fA][sirA], xnew))
 
 
 fig, axs = plt.subplots(2,1)
@@ -274,20 +521,6 @@ f='FUNCTION 5'
 c=2
 yn = []
 
-nam = [x.fname for x in test.exp]
-cats=[cat(x.fname) for x in test.exp]
-df=pd.DataFrame({'cats': cats, 'nam': nam})
-df['cats'].value_counts()
-rep=df[df['cats']=='2']['nam'].str.split('_').str[-3]
-df.loc[df['cats']=='2', 'cats']=rep
-df['dt'] = [x.aDt for x in test.exp]
-
-add=['Average System Pressure', 'Minimum System Pressure', 'Maximum System Pressure', 'Total Injections on Column', 'Sample Description', 'Bottle Number']
-
-meta=pd.DataFrame([x.edf for x in test.exp])
-df1=pd.concat([df, meta[add]], axis=1)
-df1['ind']=np.arange(df1.shape[0])
-df1=df1.sort_values('dt')
 
 fig, ax =plt.subplots(1, 1)
 ax.plot(df1.dt, df1['Average System Pressure'].astype(float))
