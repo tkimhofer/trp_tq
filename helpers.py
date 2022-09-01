@@ -611,324 +611,57 @@ class TrpExp:
 
         return [rec, r]
 
-test=Eset(dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', n=300)
 
 class Eset:
-    def __init__(self, dpath='/Users/torbenkimhofer/tdata_trp/', n=10, epath=None):
-        self.ef = ReadExpPars(epath)
-        self.df = {}
-        self.exp = []
+    @classmethod
+    def imp(cls, dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', pat='2022_URN_LTR_[0-9]', n=10):
+        ef = ReadExpPars(epath)
+        df = {}
+        exp = []
         c = 0
         for d in os.listdir(dpath):
             if c > n:
                 break
-            if bool(re.findall(".*raw$", d)):
-                # if bool(re.findall(".*22_SER_LTR_[0-9].*|.*22_PLA_LTR_[0-9].*", d)):
-                    efile = TrpExp.waters(os.path.join(dpath, d), efun=self.ef, convert=False)
-                    kwargs = dict(height=0.1, distance=10, prominence=1, width=7, wlen=9, rel_height=0.7)
-                    efile.q(**kwargs, plot=False)
-                    self.exp.append(efile)
-                    self.df.update(
-                        {efile.fname: {'nfun': {k: len(x.fid) for k, x in efile.dfd.items()}, 'dt': efile.aDt}})
-                    c += 1
+            if bool(re.findall(".*raw$", d)) and bool(re.findall(pat, d)):
+                # print(d)
 
+                efile = TrpExp.waters(os.path.join(dpath, d), efun=ef, convert=False)
+                kwargs = dict(height=0.1, distance=10, prominence=1, width=7, wlen=9, rel_height=0.7)
+                efile.q(**kwargs, plot=False)
+                exp.append(efile)
+                df.update(
+                    {efile.fname: {'nfun': {k: len(x.fid) for k, x in efile.dfd.items()}, 'dt': efile.aDt}})
+                fmm8 = os.path.join(dpath, d, 'mm8_quantv3.p')
+                try:
+                    pickle.dump(efile, open(fmm8, 'wb'), -1)
+                except:
+                    print('Can\'t write binary')
+                c += 1
+        print(c)
+        return cls(exp, ef, df)
 
-
-# epath = '/Users/torbenkimhofer/Desktop/Torben19Aug.exp'
-epath='/Users/TKimhofer/Downloads/Torben19Aug.exp'
-dpath='/Volumes/ANPC_ext1/tdata_trp/RCY_TRP_023_Robtot_Spiking_04Aug2022_URN_LTR_Cal2_110.raw'
-dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_PLA_LTR_Cal5_28.raw'
-dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_SER_LTR_Cal5_65.raw'
-dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_URN_LTR_Cal5_106.mzML'
-dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_PLA_unhealthy_18.raw'
-
-
-epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp'
-dpath='/Users/torbenkimhofer/tdata_trp/RCY_TRP_023_Robtot_Spiking_04Aug2022_SER_LTR_52.raw'
-dpath='/Users/torbenkimhofer/tdata_trp/RCY_TRP_023_Robtot_Spiking_04Aug2022_PLA_LTR_15.raw'
-
-dpath='/Users/torbenkimhofer/tdata_trp/NW_TRP_023_manual_Spiking_05Aug2022_PLA_LTR_13.raw'
-
-import time
-a=time.time()
-dpath='/Users/torbenkimhofer/Downloads/test/NW_TRP_023_manual_Spiking_05Aug2022_PLA_LTR_16.raw'
-pUH=TrpExp.waters(dpath, efun=ReadExpPars(epath))
-b=time.time()
-# pUH.qFunction(fid='FUNCTION 22', sir = None, plot=True, **kwargs)
-# [x['A'] for x in pUH.qs['FUNCTION 22'][1][1]]
-# # 31, 17, 15
-c1=time.time()
-kwargs= dict(height = 0.1, distance = 10, prominence = 1, width = 7, wlen=9, rel_height=0.7)
-pUH.q(**kwargs)
-# self=pUH
-
-c=time.time()
-
-def featplot1(ff, axs):
-    # rec = {'x': x, 'yo': yo, 'ys': ys, 'bl': baseline, 'peaks': peaks, 'hh': hh, 'ithresh': ithresh} # ybl
-    axs[2].text(1.03, 0, self.fname, rotation=90, fontsize=6, transform=axs[2].transAxes)
-    pso = -(0.2 * max(ff[0]['yo']))
-    pso_up = -(0.1 * max(ff[0]['yo']))
-    pso_low = -(0.3 * max(ff[0]['yo']))
-
-    # axs[0].fill_between(x=ff[0]['x'], y1=ff[0]['yo'], color='white', alpha=1, zorder=10)
-    axs[0].plot(ff[0]['x'], ff[0]['yo'], c='black', label='ori', zorder=11)
-    axs[0].plot(ff[0]['x'], ff[0]['ys'], label='sm', c='gray', linewidth=1, zorder=11)
-    axs[0].plot(ff[0]['x'], ff[0]['ybl'], label='sm-bl', c='cyan', linewidth=1, zorder=11)
-    axs[0].hlines(0.1, ff[0]['x'][0], ff[0]['x'][-1], color='gray', linewidth=1, linestyle='dashed', zorder=0)
-    axs[0].vlines(ff[0]['x'][ff[0]['hh']['left_bases']], pso_low, pso_up, color='gray', zorder=11)
-    axs[0].vlines(ff[0]['x'][ff[0]['hh']['right_bases']], pso_low, pso_up, color='gray', zorder=11)
-    axs[0].vlines(ff[0]['x'][ff[0]['hh']['left_ips']], 0, ff[0]['hh']['width_heights'], color='gray', linewidth=1,
-                  linestyle='dotted', zorder=11)
-    axs[0].vlines(ff[0]['x'][ff[0]['hh']['right_ips']], 0, ff[0]['hh']['width_heights'], color='gray', linewidth=1,
-                  linestyle='dotted', zorder=11)
-
-    # axs[0].scatter(x[peaks], hh['peak_heights'], c='red')
-    lyo = len(ff[0]['x'])
-    cols = plt.get_cmap('Set1').colors
-    ci = 0
-    for pi, p in enumerate(ff[0]['peaks']):
-        # axs[0].annotate(round(ff[0]['hh']['prominences'][pi], 1), (ff[0]['x'][p], ff[0]['hh']['peak_heights'][pi]),
-        #                 textcoords='offset pixels', xytext=(-4, 10), rotation=90, zorder=12)
-        peak_width = round(ff[0]['hh']['widths'][pi] / 2)
-        idx_left = max([0, p - peak_width])
-        idx_right = min([lyo - 1, p + peak_width])
-        axs[0].hlines(pso, ff[0]['x'][idx_left], ff[0]['x'][idx_right], color=cols[ci])
-
-        axs[1].plot(ff[0]['x'], ff[0]['ycomps'][pi], color=cols[ci], linewidth=1)
-        axs[1].fill_between(x=ff[0]['x'], y1=ff[0]['ycomps'][pi], color=cols[ci], alpha=0.4)
-        ci += 1
-        if ci >= len(cols):
-            ci = 0
-    axs[2].plot(ff[0]['x'], ff[0]['yo'] - ff[0]['yest'], c='black')
-    axs[0].scatter(ff[0]['x'][ff[0]['peaks']], np.repeat(pso, len(ff[0]['peaks'])), c='black', s=20)
-    axs[0].scatter(ff[0]['x'][ff[0]['peaks']], np.repeat(pso, len(ff[0]['peaks'])), c='white', s=5, zorder=10)
-
-    axs[1].plot(ff[0]['x'], ff[0]['yo'], c='black', label='ori')
-    axs[1].plot(ff[0]['x'], np.sum(ff[0]['ycomps'], 0), label='psum', c='orange')
-
-fig, axs = plt.subplots(3, 1, sharex=True, gridspec_kw={'height_ratios': [1, 1, 0.4]})
-r = 1
-ar={}
-f='FUNCTION 6'
-c=2
-print(len(test.exp[i].qs[f]))
-for i in range(len(test.exp)):
-    pUH=test.exp[i]
-    try:
-        featplot1(pUH.qs[f][r], axs)
-        ar[pUH.fname] = max([x['A'] for x in pUH.qs[f][r][1]])
-        c +=1
-
-    except:
-        pass
-print(c)
-fig.suptitle(f'{f}.{r}\n{pUH.efun.funcs[f].reactions[str(r+1)].__repr__().rstrip()}, n={c}/{len(test.exp)}')
-
-# consesnus:
-extract data, align data based on IS signal, minmax scaling - train autoencoder, calc similarity
-
-
-dd =pd.DataFrame(ar, index=[0]).T
-dd.index.str.contains('manual')
-c=['blue']*dd.shape[0]
-cols=['blue' if 'manual' in x else 'red' for x in dd.index]
-
-dd[dd.index.str.contains('manual|')].std()
-plt.scatter(range(len(cols)), dd[0], c=cols)
-plt.xlabel('index')
-plt.ylabel('Area')
-# axs[0].legend()
-plt.suptitle(f"{f}\n{pUH.efun.funcs[f].reactions[str(r)]}")
-
-{'a1': {'std': {'FUNCTION 5': 'Picolinic acid-D3'},
-       'analyte': {'FUNCTION 4': 'Picolinic/nicotinic acid/Nicolinic acid'}},
-'a2': {'std': {'FUNCTION 6': 'Nicotinic acid-D4'},
-       'analyte': {'FUNCTION 4': 'Picolinic/nicotinic acid/Nicolinic acid'}},
-'a3': {'std': {'FUNCTION 10': '3-HAA-D3'}, 'analyte': {'FUNCTION 8': '3-HAA'}},
-'a4': {'std': {'FUNCTION 11': 'Dopamine-D4'}, 'analyte': {'FUNCTION 9': 'Dopamine'}},
-'a5': {'std': {'FUNCTION 20': 'Serotonin-d4'}, 'analyte': {'FUNCTION 12': 'Serotonin'}},
-'a6': {'std': {'FUNCTION 14': 'Tryptamine-d4'}, 'analyte': {'FUNCTION 13': 'Tryptamine'}},
-'a7': {'std': {'FUNCTION 17': 'Quinolinic acid-D3'}, 'analyte': {'FUNCTION 15': 'Quinolinic acid'}},
-'a8': {'std': {'FUNCTION 19': 'I-3-AA-D4'}, 'analyte': {'FUNCTION 18': 'I-3-AA'}},}
-
-#prominence should be more than 5% of max prominence
-
-# df=pUH.extractData(f)
-# x=df['d'][0][1]
-# y=df['d'][0][2]
-# ff=pUH.featquant(x, y, f, 0, height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
-# pUH.featplot(ff)
-# plt.plot(x, y)
-
-dpath='/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_PLA_unhealthy_Cal2_42.raw'
-pUHcal2=TrpExp.waters(dpath, efun=ReadExpPars(epath))
-pUHcal2.q(height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
-pUHcal2.qFunction('FUNCTION 2', sir='2', height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
-pUHcal2.qFunction('FUNCTION 2', sir='1', height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
-pUHcal2.qFunction('FUNCTION 2', sir=None, height = 0.1, distance = 1, prominence = 0.2, width = 3, wlen = 17)
-
-
-
-s=pUHcal2.qs['FUNCTION 3'][1][1]
-pUH.qs['FUNCTION 1'][1][1]
-pUHcal2.qs['FUNCTION 1'][1][0][0:3]
-pUH.qs['FUNCTION 1'][1][0][0:3]
-
-pUHcal2.qs['FUNCTION 1'][2][0][0:3]
-pUH.qs['FUNCTION 1'][2][0][0:3]
-
-
-pUHcal2.qs['FUNCTION 3'][0][0][0:3]
-pUH.qs['FUNCTION 3'][0][0][0:3]
-
-
-# build calibration curve
-fh = ['/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_Cal1_11.raw',
-'/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_Cal2_10.raw',
-'/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_Cal3_9.raw',
-'/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_Cal4_8.raw',
-'/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_Cal6_6.raw',
-'/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_Cal7_5.raw',
-'/Volumes/ANPC_ext1/trp_qc/RCY_TRP_023_Robtot_Spiking_04Aug2022_Cal8_4.raw']
-
-
-res= []
-for f in fh:
-    pobj = TrpExp.waters(f, efun=ReadExpPars(epath))
-    pobj.quant(height=0.1, distance=1, prominence=0.2, width=3, wlen=17, plot=False)
-    res.append(pobj)
-
-# df=test.extractData('FUNCTION 3')
-
-import scipy.signal as ss
-ra=[]
-for i,f in enumerate(test.efun.funcs.keys()):
-    if '38' in f:
-        continue
-    f = list(test.efun.funcs.keys())[i]
-    # f = 'FUNCTION 1'
-    df = test.extractData(f)
-    print(f)
-    for l, r in enumerate(df['d']):
-        # l=1
-        # r = df['d'][l]
-        x=r[1]
-        y=r[2]
-        self.featquant(x, y, height=0.1, distance=5, prominence=0.1, width=1)
-        # plt.plot(x,y)
-        res=test.ppick(x, y, plot=True, height=0.1, distance=1, prominence=0.0001, width=3, wlen=17)
-        # res=ppick(x, y, plot=True, height=0.1, distance=1, prominence=0.0001, width=3, wlen=17)
-        ra.append(res)
-        if isinstance(res, list):
-            plt.suptitle(f+'.'+str(l) +' : success: '+str(res[0][0])+ ', res: '+str(round(res[0][1])))
-
-res={}
-for i, r in enumerate(ra):
-    if isinstance(r, list):
-        res[i]={'success': r[0][0], 'res': r[0][1], 'area_comp': r[0][2], 'comp_loc': r[0][4]}
-
-pd.DataFrame(res)
-
-
-# ar = {'height': 0.1, 'distance': 1, 'prominence': 0.1, 'width': 5}
-# i=14 # broad and ragged, strong right tail height=0.1, distance=1, prominence=0.2, width=5
-# i=15  height=0.1, distance=1, prominence=0.01, width=3
-# i 16 ragged and strong right tails
-# i=17,18, 24 right shoulder
-# i=19, sencond srm has smaller left signal that is not detected
-# 27 smaller right peak not detected
-# 22: high baseline troughout and no peak in third srm
-# i = 32 # borad ragged
-
-e=0
-add = []
-for i in range(1, len(g)):
-    if np.sign(g[i - 1]) != np.sign(g[i]) and g[i] > 0:
-        add.append((e - g[i]))
-        e=g[i]
-
-
-plt.plot(x, y)
-
-
-
-
-
-# define experiment set for Trp data (import series of trp experiments)
-# plot functions, QC and quantify signals
-class ExpSet:
-    def __init__(self, path='/Volumes/ANPC_ext1/trp_qc/', convert=False):
-        import re, os
-        import numpy as np
-        # find all waters experiment files
-        # try to annotate sample type (LTR vs Cal vs Sample)
-        self.exp= []
-        # self.calib = []
-        self.df = {}
-        self.areas = {}
+    @classmethod
+    def importbinary(cls,  dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', pat='2022_URN_LTR_[0-9]', n=10):
+        ef = ReadExpPars(epath)
+        df = {}
+        exp = []
         c = 0
-        for d in os.listdir(path):
-            if bool(re.findall(".*raw$", d)):
-            #     print(d)
-                try:
-                    c += 1
-                    efile = Trp.waters(os.path.join(path, d), efun=efun, convert=False)
-                    if '2022_Cal' in efile.fname:
-                        efile.stype = 'Calibration'
-                        efile.cpoint = efile.fname.split('_')[-2]
-                        self.exp.append(efile)
-                        self.df.update({efile.fname: {'stype': efile.stype , 'cpoint': efile.cpoint, 'dt': efile.aDt}})
-                    else:
-                        self.exp.append(efile)
-                        efile.stype = 'Sample'
-                        self.df.update({efile.fname: {'stype': efile.stype,  'dt': efile.aDt}})
-                    self.areas[efile.fname] = {}
-                    for f in efile.efun.funcs:  # for every function
-                        id = f.replace('FUNCTION ', '')
-                        try:
-                            efDat = efile.extractFunData(id)
-                            for i, xd in enumerate(efDat['d']):
-                                # xd = fd
-                                try:
-                                    self.areas[efile.fname].update({f + '_' + str(i): pbound(xd, plot=False)})
-                                except:
-                                    pass
-                        except:
-                            pass
+        for d in os.listdir(dpath):
+            if c > n:
+                break
+            fmm8 = os.path.join(dpath, d, 'mm8_quantv3.p')
+            if bool(re.findall(pat, d)) and os.path.exists(fmm8):
+                with open(fmm8, 'rb') as fh:
+                    efile=pickle.load(fh)
+                exp.append(efile)
+                df.update(
+                    {efile.fname: {'nfun': {k: len(x.fid) for k, x in efile.dfd.items()}, 'dt': efile.aDt}})
+                c += 1
+        print(c)
+        return cls(exp, ef, df)
 
-                except:
-                    print(f'failed for file {d}')
+    def __init__(self, expData, expFData, dfData):
+        self.exp = expData
+        self.ef = expFData
+        self.df = dfData
 
-        print(f'Imported a total of {c} files')
-
-        dt = [x['dt'] for k, x in self.df.items()]
-        ro = np.argsort(dt)
-
-        dd = pd.DataFrame(self.df).T
-        dd['RunOrder'] = ro
-        dd['Sample'] = dd.index
-        dd = dd[['RunOrder', 'Sample', 'stype', 'cpoint', 'dt']]
-        self.exp = [self.exp[i] for i in ro]
-        dd = dd.sort_values('RunOrder')
-        self.df = dd
-
-    def vis(self):
-        import plotly.graph_objects as go
-        fig = go.Figure()
-        areas = {}
-        for rec in self.exp:
-            areas[rec.fname] = {}
-            for f in rec.efun.funcs:  # for every function
-                id = f.replace('FUNCTION ', '')
-                try:
-                    efDat = rec.extractFunData(id)
-                    for i, fd in enumerate(efDat['d']):
-                        print(i)
-                        xd = fd
-                        try:
-                            areas[rec.fname].update({f + '_' + str(i): pbound(xd, plot=False)})
-                        except:
-                            pass
-                except:
-                    pass
