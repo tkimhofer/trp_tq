@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import re
 
-def matchC(rec, fis, fa, sirIS, sirA, locDev=60/10, sumC=False, maxi=False):
+def matchC(rec, fis, fa, sirIS, sirA, locDev=60/30, sumC=False, maxi=False):
     # select fitted components of IS and match to components of analyte
     # locDev: allowed rt deviation (10%->6 sec)
     if fis not in rec.qs.keys() or fa not in rec.qs.keys():
@@ -170,6 +170,7 @@ def fnorm(dat, xnew):
   
 ss=Eset.importbinary(dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', pat='', n=600)
 df=createMetaDf(ss)
+ttt=df[['cats', 'nam', 'Sample Description']]
 df.index=df.nam
 
 # ss=Eset.imp(dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', pat='', n=1000)
@@ -182,22 +183,28 @@ df.index=df.nam
 #
 # kwargs = dict(height=0.1, distance=10, prominence=1, width=7, wlen=9, rel_height=0.7)
 # x.qFunction(f, 2, plot=True, **kwargs, )
-pair='a30'
-i=10
+pair='a4'
+s=100
+sic=0
 # xx=[x for x in ss.exp if x.fname == 'RCY_TRP_023_Robtot_Spiking_04Aug2022_SER_unhealthy_Cal2_80.raw'][0]
-# fIS=list(ss.exp[i].fmap[pair]['std'].keys())[0]
-fIS='FUNCTION 3'
-fIS='FUNCTION 10'
-fIS='FUNCTION 28'
-fIS='FUNCTION 14'
+fIS=list(ss.exp[s].fmap[pair]['std'].keys())[0]
+# fIS='FUNCTION 27'
+# fIS='FUNCTION 10'
+# fIS='FUNCTION 28'
+# fIS='FUNCTION 14'
 
-fA=list(ss.exp[i].fmap[pair]['analyte'].keys())[0]
+fA=list(ss.exp[s].fmap[pair]['analyte'].keys())[0]
 
-ss.exp[i].featplot(ss.exp[i].qs[fIS][1])
-ss.exp[i].featplot(ss.exp[i].qs[fA][0])
+ss.exp[s].featplot(ss.exp[s].qs[fIS][sic])
+ss.exp[s].featplot(ss.exp[i].qs[fA][sic])
 
-xx.featplot(xx.qs[fIS][0])
-xx.featplot(xx.qs[fA][1])
+# xx.featplot(xx.qs[fIS][0])
+# xx.featplot(xx.qs[fA][1])
+
+# np.argsort(-dp)
+# i=71
+# exp1[i].featplot(exp1[i].qs[fIS][1])
+
 # a15: Fx.0 and Fx.1 matching
 # a14: onlye Fx.0 matching pair, Fx.1 not exist for IS
 # a13: F36.0 (IS), F32.1 (A) matching, F32.0 not paired
@@ -220,8 +227,8 @@ getA(x.qs[f][sir])
 # fa='FUNCTION 9' # piclolinic acid
 
 # data = []
-sirIS=0
-sirA=1
+sirIS=sic
+sirA=sic
 ar = []
 quants=[]
 for i, x in enumerate(ss.exp):
@@ -235,8 +242,18 @@ test=pd.DataFrame([item for sublist in quants for item in sublist])
 test.index=test.sid
 df1=df.join(test)
 df1['Total Injections on Column']=df1['Total Injections on Column'].astype(int)
+
+df2=df1[df1['cats'].str.contains('rP')]
+esub = [x for x in ss.exp if x.fname in df2.index]
+for e in esub:
+    if not pd.isna(df1.loc[e.fname].aR):
+        print(df1.loc[e.fname])
+        e.featplot(e.qs[fIS][sic])
+        e.featplot(e.qs[fA][sic])
 # ct=test.sid.value_counts()
 # rt =test.loc[ct[ct>1].index]
+
+
 
 # fig, axs = plt.subplots(2,4)
 vis(df1, title=f"{rec.efun.funcs[fA].reactions[str(sirA+1)]} with {rec.efun.funcs[fIS].reactions[str(sirIS+1)]}",\
@@ -357,23 +374,40 @@ history = autoencoder.fit(rr, rr,
           # validation_data=(test_data, test_data),
           shuffle=True)
 
-# plt.plot(history.history["loss"], label="Training Loss")
+plt.figure(figsize=(5,4))
+plt.plot(history.history["loss"], label="Training Loss")
 # plt.plot(history.history["val_loss"], label="Validation Loss")
-# plt.legend()
+plt.title('F27.1 (Knynate-D5): Autoencoder training')
+plt.xlabel('Epoch (batch size 20)')
+plt.ylabel('Mean absolute error')
+plt.legend()
 
 
 encoded_data = autoencoder.encoder(rr).numpy()
 decoded_data = autoencoder.decoder(encoded_data).numpy()
 
+plt.plot(xnew, decoded_data.T, color='black', linewidth=0.1)
+plt.plot(xnew, decoded_data.T[:,0], color='black', linewidth=0.1, label='AE reconstructed signal')
 
-rp = tf.convert_to_tensor(data)
-reconstructions = autoencoder.predict(rp)
-train_loss = tf.keras.losses.mae(reconstructions, rp)
+# rp = tf.convert_to_tensor(data)
+# reconstructions = autoencoder.predict(rp)
+# train_loss = tf.keras.losses.mae(reconstructions, rp)
+plt.plot(xnew, np.mean(rr, 0), color='yellow', linewidth=2, label='Avg signal')
+plt.plot(xnew, np.mean(rr, 0)+np.std(rr, 0), color='cyan', linewidth=2, label='Avg signal +/- 1 SD')
+plt.plot(xnew, np.mean(rr, 0)-np.std(rr, 0), color='cyan', linewidth=2)
+plt.plot(xnew, np.mean(decoded_data, 0), color='red', linewidth=2, label='AE consensus peak')
+plt.xlabel('Normalised ST')
+plt.ylabel('Normalised sum of counts')
+plt.legend()
 
 # plt.plot(xnew, np.mean(decoded_data, 0), color='red', linewidth=20)
 plt.plot(xnew, rr.numpy().T, color='black', linewidth=0.1)
-plt.plot(xnew, np.mean(decoded_data, 0), color='red', linewidth=2, label='Consensus peak AE')
-plt.title(f'{fA}.{sirA}: {x.efun.funcs[fA].reactions[str(sirA+1)]}')
+plt.plot(xnew, np.mean(rr, 0), color='yellow', linewidth=2, label='Avg signal')
+plt.plot(xnew, np.mean(rr, 0)+np.std(rr, 0), color='cyan', linewidth=2, label='Avg signal +/- 1 SD')
+plt.plot(xnew, np.mean(rr, 0)-np.std(rr, 0), color='cyan', linewidth=2)
+plt.plot(xnew, np.mean(decoded_data, 0), color='red', linewidth=2, label='AE consensus peak')
+
+plt.title(f'{fIS}.{sirIS}: {x.efun.funcs[fIS].reactions[str(sirIS+1)]}')
 plt.xlabel('Normalised ST')
 plt.ylabel('Normalised sum of counts')
 plt.legend()
@@ -388,9 +422,22 @@ for i, x in enumerate(ss.exp):
     if isinstance(x.qs[fA][sirA], list):
         data.append(fnorm(x.qs[fA][sirA], xnew))
 
+data = []
+exp1=[]
+# sir=1
+for i, x in enumerate(ss.exp):
+    # x.featplot(x.qs[f][1])
+    if i == 0:
+        xra = [-0.3, 0.3, 500]
+        xnew = np.linspace(*xra)
+    if isinstance(x.qs[fIS][sirIS], list):
+        exp1.append(x)
+        data.append(fnorm(x.qs[fIS][sirIS], xnew))
+
 
 fig, axs = plt.subplots(2,1)
 ssc = (train_loss.numpy() - min(train_loss.numpy())) / (max(train_loss.numpy())- min(train_loss.numpy()))
+
 
 cm=plt.cm.viridis(ssc)
 import matplotlib as mp
@@ -407,16 +454,16 @@ sm = plt.cm.ScalarMappable(cmap=plt.cm.viridis)
 clb=fig.colorbar(sm, ax=axs[0:2])
 clb.ax.set_title('N-MAE')
 
-
+plt.figure(figsize=(6,4))
 dp = train_loss.numpy()[0:len(datap)]
 plt.scatter(np.arange(len(dp)), dp, c='red', label='prediction analyte')
 dt = train_loss.numpy()[len(datap):]
-plt.scatter(np.arange(len(dt))+len(dp), dt, c='blue', label='training IS')
+# plt.scatter(np.arange(len(dt))+len(dp), dt, c='blue', label='training IS')
 plt.legend()
 plt.xlabel('Sample index')
 plt.ylabel('Mean Absolute Error')
 
-
+np.argmax(dp)
 
 
 
