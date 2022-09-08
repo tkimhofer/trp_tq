@@ -63,12 +63,12 @@ def matchC(rec, fis, fa, sirIS, sirA, locDev=60/30, sumC=False, maxi=False):
 
 
 
-
-
-    locIS = [x['mu_decon'] for x in rec[sirIS][1]]
-    locA = [x['mu_decon'] for x in rec[sirA][1]]
-
-    # return ratios A/IS
+    #
+    #
+    # locIS = [x['mu_decon'] for x in rec[sirIS][1]]
+    # locA = [x['mu_decon'] for x in rec[sirA][1]]
+    #
+    # # return ratios A/IS
 
 def cat(x):
     if bool(re.findall('22_DB_[0-9].*', x)):
@@ -123,15 +123,12 @@ def createMetaDf(test):
     rep = df[df['cats'] == '2']['nam'].str.split('_').str[-3]
     df.loc[df['cats'] == '2', 'cats'] = rep
     df['dt'] = [x.aDt for x in test.exp]
-
     add = ['Average System Pressure', 'Minimum System Pressure', 'Maximum System Pressure',
            'Total Injections on Column', 'Sample Description', 'Bottle Number']
-
     meta = pd.DataFrame([x.edf for x in test.exp])
     df1 = pd.concat([df, meta[add]], axis=1)
     df1['ind'] = np.arange(df1.shape[0])
     df1 = df1.sort_values('dt')
-
     return df1
 
 
@@ -168,10 +165,71 @@ def fnorm(dat, xnew):
     return yi / max(yi)
     # return yi
   
-ss=Eset.importbinary(dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', pat='', n=600)
+ss=Eset.importbinary(dpath='/Volumes/ANPC_ext1/trp_qc', epath='/Users/TKimhofer/Downloads/Torben19Aug.exp', pat='', n=600)
+# ss=Eset.imp(dpath='/Volumes/ANPC_ext1/trp_qc', epath='/Users/TKimhofer/Downloads/Torben19Aug.exp', pat='', n=600, alwaysConvert=False)
+
 df=createMetaDf(ss)
-ttt=df[['cats', 'nam', 'Sample Description']]
+ttt=df[['cats', 'nam', 'Sample Description',  'Total Injections on Column']]
 df.index=df.nam
+
+# select calibration samples
+df['rid'] = df['nam'].str.split('_|\.').str[-2].astype(int)
+calibMan = df[(df['rid'] > 131) & (df['rid'] < 140)]
+df['Total Injections on Column'] = df['Total Injections on Column'].astype(int)
+calibRob = df[(df['Total Injections on Column'] > 1058) & (df['Total Injections on Column'] < 1067)]
+calibRob.index = calibRob.nam
+calibMan.index = calibMan.nam
+
+
+
+# plot calibration curve for calibMan
+for i in range(calibMan.shape[0]):
+    print(i)
+    [x.fname for x in enumerate(ss.exp) if ]
+
+
+
+
+epath='/Users/TKimhofer/Downloads/Torben19Aug.exp'
+efile = TrpExp.waters(dpath='/Volumes/ANPC_ext1/trp_qc/NW_TRP_023_manual_Spiking_05Aug2022_URN_healthy_92.raw', efun=ReadExpPars(epath), convert=False)
+efile.q()
+fA='FUNCTION 2'
+efile.featplot(efile.qs[fA][0])
+
+
+
+efile.q(height=0.1, distance=10, prominence=1, width=7, wlen=9, rel_height=0.7, plot=False)
+efile.qs['FUNCTION 27'][0][0].keys()
+efile.qs['FUNCTION 31'][0][1][0].keys()
+
+plt.plot(efile.qs['FUNCTION 1'][0][0]['yres'])
+plt.title(efile.qs['FUNCTION 31'][0][0]['resNorm'])
+
+
+
+
+# get sd normalised residuals
+import statistics
+{i: sum(abs(x.qs[fIS][sic][0]['yo'] - x.qs[fIS][sic][0]['yest'])) / statistics.stdev(x.qs[fIS][sic][0]['yo']) for i, x in enumerate(ss.exp) if isinstance(x.qs[fIS][0], list)}
+
+
+fA='FUNCTION 2'
+efile.featplot(ss.exp[1].qs[fA][0])
+ss.exp[1].featplot(ss.exp[1].qs[fA][0])
+ss.exp[6].featplot(ss.exp[6].qs[fA][0])
+ss.exp[4].featplot(ss.exp[4].qs[fA][sic])
+
+ss.exp[5].featplot(ss.exp[5].qs[fIS][sic])
+ss.exp[8].featplot(ss.exp[8].qs[fIS][sic])
+
+
+
+
+
+df=createMetaDf(ss)
+df.index=df.nam
+ttt=df[['cats', 'nam', 'Sample Description']]
+
 
 # ss=Eset.imp(dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', pat='', n=1000)
 
@@ -184,7 +242,7 @@ df.index=df.nam
 # kwargs = dict(height=0.1, distance=10, prominence=1, width=7, wlen=9, rel_height=0.7)
 # x.qFunction(f, 2, plot=True, **kwargs, )
 pair='a4'
-s=100
+s=0
 sic=0
 # xx=[x for x in ss.exp if x.fname == 'RCY_TRP_023_Robtot_Spiking_04Aug2022_SER_unhealthy_Cal2_80.raw'][0]
 fIS=list(ss.exp[s].fmap[pair]['std'].keys())[0]
@@ -196,7 +254,7 @@ fIS=list(ss.exp[s].fmap[pair]['std'].keys())[0]
 fA=list(ss.exp[s].fmap[pair]['analyte'].keys())[0]
 
 ss.exp[s].featplot(ss.exp[s].qs[fIS][sic])
-ss.exp[s].featplot(ss.exp[i].qs[fA][sic])
+ss.exp[s].featplot(ss.exp[s].qs[fA][sic])
 
 # xx.featplot(xx.qs[fIS][0])
 # xx.featplot(xx.qs[fA][1])
@@ -225,10 +283,21 @@ getA(x.qs[f][sir])
 
 # f='FUNCTION 11' # piclolinic acid
 # fa='FUNCTION 9' # piclolinic acid
+df['assay'] = df['nam'].apply(lambda x: 'r' if bool(re.findall('.*Robtot.*', x)) else 'm')
+# df['assay'] = df['nam'].apply(lambda x:  print(bool(re.findall('.*.*', str(x)))))
+
+df['assay'].value_counts()
+df['Total Injections on Column'] = df['Total Injections on Column'].astype(int)
+df['Sample Description'].value_counts()
+df['qc'] = df['Sample Description'].str.contains("^ ?Cal.*", regex=True, flags=re.IGNORECASE)
+df.qc.value_counts()
+
 
 # data = []
-sirIS=sic
-sirA=sic
+fIS='FUNCTION 20'
+fA='FUNCTION 1'
+sirIS=0
+sirA=1
 ar = []
 quants=[]
 for i, x in enumerate(ss.exp):
@@ -242,6 +311,138 @@ test=pd.DataFrame([item for sublist in quants for item in sublist])
 test.index=test.sid
 df1=df.join(test)
 df1['Total Injections on Column']=df1['Total Injections on Column'].astype(int)
+
+
+# dman = calibMan.join(test)
+# dman['cpoint'] = dman['Sample Description'].str.replace('Cal', '').astype(int)
+# #
+# fig, axs = plt.subplots(1, 2, sharey=True)
+# axs[0].scatter(drob['cpoint'], 1/(1+drob['aR']), label='Dopamine Robot')
+# # axs[0].set_yscale('log')
+# axs[1].scatter(dman['cpoint'], 1 / (1+dman['aR']), label='Dopamine Manual')
+# # axs[1].set_yscale('log')
+# fig.legend()
+#
+# fig, axs = plt.subplots(1, 2, sharey=True)
+# axs[0].scatter(drob['cpoint'], drob['aR'], label='Dopamine Robot')
+# axs[1].scatter(dman['cpoint'], dman['aR'], label='Dopamine Manual')
+#
+# fig.legend()
+
+df1['cpoint']
+
+
+
+fig, axs = plt.subplots(1, 2)
+
+idx=df1.assay == 'r'
+df1.assay.value_counts()
+idx=df1.assay == 'r'
+
+df1['cpoint']=None
+# idx_cal = df1['Sample Description'].str.contains('^ ?Cal')
+df1['cpoint'].loc[df1.qc] = df1['Sample Description'].loc[df1.qc].str.replace('^ ?Cal', '').astype(float)
+
+fig, axs = plt.subplots(2, 2, sharey=True)
+
+iidc = df1.qc & (df1.assay=='r')
+
+axs[0, 0].scatter(df1['cpoint'].loc[df1.qc and (df1.assay=='r')], df1['aA'].loc[df1.qc & (df1.assay=='r')], label='integral A')
+axs[0, 0].set_title('Calib Robot')
+axs[0, 0].set_yscale('log', base=10)
+axs[0, 0].legend()
+
+df1['iid']=df['Total Injections on Column'].rank()
+
+for i in df1['Sample Description'].loc[~df1.qc & (df1.assay=='r')].unique():
+    idx = df1['Sample Description'] == i
+    axs[0, 1].scatter(df1.iid.loc[idx], df1['aIS'].loc[idx], label=i)
+axs[0, 1].legend()
+axs[0, 1].set_yscale('log', base=10)
+
+
+axs[0].scatter(df1['cpoint'].loc[df1.qc], df1['aIS'].loc[df1.qc], label='integral IS')
+axs[0, 1].scatter(np.argsort(np.argsort(df1['aIS'].loc[~df1.qc].values)), df1['aIS'].loc[~df1.qc])
+axs[1].scatter(np.argsort(np.argsort(df1['aA'].loc[~df1.qc].values)), df1['aA'].loc[~df1.qc], c=df1['Sample Description'].astype('category').cat.codes.loc[~df1.qc])
+axs[1].set_yscale('log', base=10)
+
+
+df1['Sample Description'].astype('category').cat.codes
+
+axs[1].scatter(drob['cpoint'].loc[~idx], drob['aIS'].loc[~idx], label='integral IS')
+axs[1].set_yscale('log', base=10)
+axs[1].scatter(drob['cpoint'].loc[~idx], drob['aA'].loc[~idx], label='integral A')
+axs[1].set_title('Calib Manual')
+axs[1].set_yscale('log')
+axs[1].legend()
+
+
+
+fig, axs = plt.subplots(1, 2, sharey=True)
+
+idx=df1.assay == 'r'
+df1.assay.value_counts()
+
+axs[0].scatter(df1['cpoint'].loc[idx], df1['aIS'].loc[idx], label='integral IS', c=df1['qc'].astype('category').cat.codes.loc[idx])
+axs[0].scatter(drob['cpoint'].loc[idx], drob['aA'].loc[idx], label='integral A')
+axs[0].set_title('Calib Robot')
+axs[0].set_yscale('log', base=10)
+axs[0].legend()
+
+axs[1].scatter(drob['cpoint'].loc[~idx], drob['aIS'].loc[~idx], label='integral IS')
+axs[1].set_yscale('log', base=10)
+axs[1].scatter(drob['cpoint'].loc[~idx], drob['aA'].loc[~idx], label='integral A')
+axs[1].set_title('Calib Manual')
+axs[1].set_yscale('log')
+axs[1].legend()
+
+tttitle = f'{fIS}.{sirIS}, {fA}.{sirA}\n{ss.exp[0].efun.funcs[fA].reactions[str(sirA+1)]}'
+fig.suptitle(tttitle)
+
+
+caliMeta=pd.read_excel('/Users/TKimhofer/Downloads/Concentrations for the Try assay standards.xlsx')
+caliMeta[caliMeta.Substance.str.contains('Dopam', na=False)].T.to_dict('index')
+caliD = {'Dopamine': {1: 80, 2: 40, 3: 20, 4: 12, 5: 8, 6: 3.2, 7: 1.8, 8: 0.8}, '3-HAA': {1: 200, 2:100, 3:50, 4:30, 5:20, 6:8, 7:4, 8:2}, 'Serotonin': {1: 300, 2:150, 3:75, 4:45, 5:30, 6:12, 7:6, 8:3}, 'TMA': {1:400, 2:200, 3:100, 4:60, 5: 40, 6: 16, 7:8, 8:4}, 'TMAO': {1:400, 2:200, 3:100, 4:60, 5: 40, 6: 16, 7:8, 8:4}}
+
+dman['conc']=[caliD['Dopamine'][x] for x in dman.cpoint]
+drob['conc']=[caliD['Dopamine'][x] for x in drob.cpoint]
+
+dman['conc']=[caliD['3-HAA'][x] for x in dman.cpoint]
+drob['conc']=[caliD['3-HAA'][x] for x in drob.cpoint]
+
+dman['conc']=[caliD['Serotonin'][x] for x in dman.cpoint]
+drob['conc']=[caliD['Serotonin'][x] for x in drob.cpoint]
+
+dman['conc']=[caliD['TMAO'][x] for x in dman.cpoint]
+drob['conc']=[caliD['TMAO'][x] for x in drob.cpoint]
+
+import scipy.stats as sss
+
+idx=drob.assay == 'r'
+
+fig, axs = plt.subplots(1, 2, sharey=True)
+
+axs[0].scatter(drob['conc'].loc[idx], drob['aIS'].loc[idx], label='integral IS')
+axs[0].scatter(drob['conc'].loc[idx], drob['aA'].loc[idx], label='integral A')
+axs[0].set_yscale('log', base=10)
+axs[0].set_xscale('log', base=10)
+axs[0].legend()
+
+
+axs[1].scatter(dman['conc'].loc[~idx], dman['aIS'].loc[~idx], label='integral IS')
+axs[1].scatter(dman['conc'].loc[~idx], dman['aA'].loc[~idx], label='integral A')
+axs[1].set_yscale('log', base=10)
+axs[1].set_xscale('log', base=10)
+axs[1].legend()
+fig.suptitle(tttitle)
+
+
+
+# slope, intercept, r, p, se = sss.linregress(dman['conc'].values, dman['aA'].values)
+# slope, intercept, r, p, se = sss.linregress(drob['conc'].values, drob['aA'].values)
+# axs[0].set_title(f'Calib Robot (r2={round(r, 2)}, m={round(slope, 2)}, b={round(intercept, 2)})')
+# axs[1].set_title(f'Calib Manual (r2={round(r, 2)}, m={round(slope, 2)}, b={round(intercept, 2)})')
+
 
 df2=df1[df1['cats'].str.contains('rP')]
 esub = [x for x in ss.exp if x.fname in df2.index]
@@ -674,9 +875,6 @@ for i in range(dd.shape[0]):
 plt.xlabel('Total Injections on Column')
 plt.ylabel('Integral')
 plt.title(f+' SIR 1')
-
-
-
 plt.subplots()
 
 
@@ -692,7 +890,7 @@ test=dd[['Sample Description', 'nam']]
 
 # print(len(test.exp[i].qs[f]))
 # find consensus signals using IS, then compare analyte peaks with consensus signal
-f='FUNCTION 5'
+f='FUNCTION 28'
 stype='LTR_URN'
 transition=1
 sidx=df1[df1.cats == stype].ind.values

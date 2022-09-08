@@ -376,7 +376,15 @@ class TrpExp:
     def smooth(y, wlen=21):
         ys = ssig.savgol_filter(y, wlen, 3)
         return ys
-        # return ys
+
+    @staticmethod
+    def blcor(y, rety=True):
+        import pybaselines as bll
+        ybl = bll.morphological.mor(y, half_window=100)[0]
+        if rety:
+            return y - ybl
+        else:
+            return ybl
 
     @staticmethod
     def decon1(x, y, peaks, hh):
@@ -427,21 +435,7 @@ class TrpExp:
             acomp.append(np.trapz(est))
             comp.append(est)
             psum += est
-        return [result.success, np.sqrt(np.sum((psum - y) ** 2)), acomp, psum, result.x, comp]
-
-    @staticmethod
-    def blcor(y, rety=True):
-        # from scipy.interpolate import UnivariateSpline
-        import pybaselines as bll
-        # ybl1=bll.whittaker.iasls(y, lam=1e4)[0]
-        # ybl1=bll.polynomial.imodpoly(ys, x, poly_order=4)[0]
-        ybl=bll.morphological.mor(y, half_window=100)[0]
-        # plt.plot(x, ybl1)
-        # plt.plot(x, y)
-        if rety:
-            return y - ybl
-        else:
-            return ybl
+        return [result.success, (y-psum), acomp, psum, result.x, comp]
 
     def qFunction(self, fid, sir = None, plot=True, **kwargs):
         # height = 0.1, distance = 1, prominence = 1, width = 3, wlen = 27
@@ -474,6 +468,7 @@ class TrpExp:
     def q(self, plot=True,  **kwargs):
         # height = 0.1, distance = 1, prominence = 0.1, width = 3, wlen = 17
         # height = 0.1, distance = 1, prominence = 0.1, width = 3,
+        kwargs = dict(height=0.1, distance=10, prominence=1, width=7, wlen=9, rel_height=0.7)
         qsf = {}
         for i, f in enumerate(self.efun.funcs.keys()):
             try:
@@ -508,7 +503,11 @@ class TrpExp:
     def featplot(self, ff):
         # rec = {'x': x, 'yo': yo, 'ys': ys, 'bl': baseline, 'peaks': peaks, 'hh': hh, 'ithresh': ithresh} # ybl
         fig, axs = plt.subplots(3, 1, sharex=True, gridspec_kw={'height_ratios': [1, 1, 0.4]})
-        axs[2].text(1.03, 0, self.fname, rotation=90, fontsize=6, transform=axs[2].transAxes)
+        try:
+            name = f'{self.fname} ({", ".join([self.edf["Bottle Number"], self.edf["Sample Description"]])})'
+        except:
+            name = self.fname
+        axs[2].text(1.03, 0, name, rotation=90, fontsize=6, transform=axs[2].transAxes)
         pso = -(0.2 * max(ff[0]['yo']))
         pso_up = -(0.1 * max(ff[0]['yo']))
         pso_low = -(0.3 * max(ff[0]['yo']))
@@ -602,19 +601,19 @@ class TrpExp:
 
         succ, res, areas, yest, params, comp = self.decon1(x, yo, peaks, hh)
         # [result.success, np.sum((psum - y) ** 2), acomp, yest, result.x]
-        rec = {'x': x, 'yo': yo, 'ys': ys, 'bl': baseline, 'ybl': ybl, 'peaks': peaks, 'hh': hh, 'ithresh': ithresh, 'yest': yest, 'ycomps': comp}
+        rec = {'x': x, 'yo': yo, 'ys': ys, 'bl': baseline, 'ybl': ybl, 'peaks': peaks, 'hh': hh, 'ithresh': ithresh, 'yest': yest, 'ycomps': comp, 'yres': res, 'resNorm': sum(abs(res))/np.std(yo)}
 
         r = []
         for i, p in enumerate(peaks):
             A, a, mu, sig = params[(((i+1)*4)-4):((i+1)*4)]
-            r.append({'fid': fid, 'sim': sim, 'pid': i, 'mu_pp': x[p], 'mu_decon': mu, 'a': a, 'sig': sig, 'A': A/s, 'prom': hh['prominences'][i], 'hmax': hh['width_heights']/s,  'fwhm': x[hh['right_ips'][i]] - x[hh['left_ips'][i]], })
+            r.append({'fid': fid, 'sim': sim, 'pid': i, 'mu_pp': x[p], 'mu_decon': mu, 'a': a, 'sig': sig, 'A': A/s, 'prom': hh['prominences'][i], 'hmax': hh['width_heights']/s,  'fwhm': x[hh['right_ips'][i]] - x[hh['left_ips'][i]]})
 
         return [rec, r]
 
 
 class Eset:
     @classmethod
-    def imp(cls, dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', pat='2022_URN_LTR_[0-9]', n=10):
+    def imp(cls, dpath='/Users/torbenkimhofer/tdata_trp/', epath='/Users/torbenkimhofer/Desktop/Torben19Aug.exp', pat='2022_URN_LTR_[0-9]', n=10, alwaysConvert=False):
         ef = ReadExpPars(epath)
         df = {}
         exp = []
@@ -625,7 +624,7 @@ class Eset:
             if bool(re.findall(".*raw$", d)) and bool(re.findall(pat, d)):
                 # print(d)
 
-                efile = TrpExp.waters(os.path.join(dpath, d), efun=ef, convert=False)
+                efile = TrpExp.waters(os.path.join(dpath, d), efun=ef, convert=alwaysConvert)
                 kwargs = dict(height=0.1, distance=10, prominence=1, width=7, wlen=9, rel_height=0.7)
                 efile.q(**kwargs, plot=False)
                 exp.append(efile)
@@ -664,4 +663,68 @@ class Eset:
         self.exp = expData
         self.ef = expFData
         self.df = dfData
+
+    def cat(x):
+        if bool(re.findall('22_DB_[0-9].*', x)):
+            return 'DB'
+        elif bool(re.findall('22_Cal[0-9]_[0-9].*', x)):
+            return x.split('_')[-2]
+        elif bool(re.findall('22_PLA_unhealthy_[0-9].*', x)):
+            return 's1P'
+        elif bool(re.findall('22_SER_unhealthy_[0-9].*', x)):
+            return 's1S'
+        elif bool(re.findall('22_URN_unhealthy_[0-9].*', x)):
+            return 's1U'
+        elif bool(re.findall('22_PLA_healthy_[0-9].*', x)):
+            return 's0P'
+        elif bool(re.findall('22_SER_healthy_[0-9].*', x)):
+            return 's0S'
+        elif bool(re.findall('22_URN_healthy_[0-9].*', x)):
+            return 's0U'
+        elif bool(re.findall('22_PLA_LTR_[0-9].*', x)):
+            return 'rP'
+        elif bool(re.findall('22_SER_LTR_[0-9].*', x)):
+            return 'rS'
+        elif bool(re.findall('22_URN_LTR_[0-9].*', x)):
+            return 'rU'
+        elif bool(re.findall('22_PLA_unhealthy_Cal[0-9]_[0-9].*', x)):
+            return 's1P_' + x.split('_')[-2]
+        elif bool(re.findall('22_SER_unhealthy_Cal[0-9]_[0-9].*', x)):
+            return 's1S_' + x.split('_')[-2]
+        elif bool(re.findall('22_URN_unhealthy_Cal[0-9]_[0-9].*', x)):
+            return 's1U_' + x.split('_')[-2]
+        elif bool(re.findall('22_PLA_healthy_Cal[0-9]_[0-9].*', x)):
+            return 's0P_' + x.split('_')[-2]
+        elif bool(re.findall('22_SER_healthy_Cal[0-9]_[0-9].*', x)):
+            return 's0S_' + x.split('_')[-2]
+        elif bool(re.findall('22_URN_healthy_Cal[0-9]_[0-9].*', x)):
+            return 's0U_' + x.split('_')[-2]
+
+        elif bool(re.findall('22_PLA_LTR_Cal[0-9]_[0-9].*', x)):
+            return 'rP_' + x.split('_')[-2]
+        elif bool(re.findall('22_SER_LTR_Cal[0-9]_[0-9].*', x)):
+            return 'rS_' + x.split('_')[-2]
+        elif bool(re.findall('22_URN_LTR_Cal[0-9]_[0-9].*', x)):
+            return 'rU_' + x.split('_')[-2]
+        else:
+            return 'unassigned'
+
+    def createMetaDf(test):
+        nam = [x.fname for x in test.exp]
+        cats = [cat(x.fname) for x in test.exp]
+        df = pd.DataFrame({'cats': cats, 'nam': nam})
+        df['cats'].value_counts()
+        rep = df[df['cats'] == '2']['nam'].str.split('_').str[-3]
+        df.loc[df['cats'] == '2', 'cats'] = rep
+        df['dt'] = [x.aDt for x in test.exp]
+
+        add = ['Average System Pressure', 'Minimum System Pressure', 'Maximum System Pressure',
+               'Total Injections on Column', 'Sample Description', 'Bottle Number']
+
+        meta = pd.DataFrame([x.edf for x in test.exp])
+        df1 = pd.concat([df, meta[add]], axis=1)
+        df1['ind'] = np.arange(df1.shape[0])
+        df1 = df1.sort_values('dt')
+
+        return df1
 
